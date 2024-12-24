@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   TextInput,
-  Button,
   StyleSheet,
   ScrollView,
+  Pressable,
 } from 'react-native';
 import io from 'socket.io-client';
+import SendIcon from 'react-native-vector-icons/Ionicons';
+import CrossIcon from 'react-native-vector-icons/Entypo';
+
 
 const socket = io('http://10.0.2.2:5000');
 
@@ -21,9 +24,14 @@ const ChatComponent = () => {
   const [heading, setHeading] = useState<string>('Waiting for a Stranger...');
   const [messages, setMessages] = useState<Message[]>([]); 
   const [roomId, setRoomId] = useState<string | null>(null);
+  const scrollViewRef = useRef<ScrollView | null>(null);
 
   useEffect(() => {
-    socket.on('matched', ({ roomId, partnerId }) => {
+    scrollViewRef.current?.scrollToEnd({ animated: true });
+  }, [messages]);
+
+  useEffect(() => {
+    socket.on('matched', ({ roomId}) => {
       setRoomId(roomId);
       setHeading(`Chatting with a stranger!`);
       setMessages((prevMessages) => [
@@ -80,7 +88,10 @@ const ChatComponent = () => {
         <Text style={styles.headerText}>{heading}</Text>
       </View>
 
-      <ScrollView style={styles.chatWindow}>
+      <ScrollView
+        style={styles.chatWindow}
+        ref={scrollViewRef}
+        contentContainerStyle={styles.chatContent}>
         {messages.map((msg, index) => (
           <View
             key={index}
@@ -102,17 +113,28 @@ const ChatComponent = () => {
       </ScrollView>
 
       <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.textInput}
-          value={message}
-          onChangeText={setMessage}
-          placeholder="Type a message"
-        />
-        <View style={styles.buttonContainer}>
-          <Button color="#6200ee" title="Send" onPress={sendMessage} />
-          <Button color="#FF0000" title="Exit Chat" onPress={exitChat} />
-        </View>
+      <TextInput
+        style={styles.textInput}
+        value={message}
+        onChangeText={setMessage}
+        placeholder="Type a message"
+      />
+      <View style={styles.buttonContainer}>
+        <Pressable
+        onPress={sendMessage}
+        hitSlop={20}
+        >
+        <SendIcon name="send-sharp" size={36} color="#0B2F9F" />
+        </Pressable>  
+
+        <Pressable onPress={exitChat}>
+        <CrossIcon name="circle-with-cross" size={36} color="#0B2F9F"/>
+        </Pressable>
+
       </View>
+    </View>
+
+      
     </View>
   );
 };
@@ -122,19 +144,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  header: {
-    height: 60,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#6200ee',
-  },
-  headerText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
+
   chatWindow: {
     flex: 1,
+  },
+  chatContent: {
     padding: 10,
   },
   messageContainer: {
@@ -142,6 +156,20 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 10,
     maxWidth: '80%',
+  },
+
+  header: {
+    height: 60,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#161D6F',
+  },
+  headerText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
   },
   sentMessage: {
     alignSelf: 'flex-end',
@@ -162,6 +190,7 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   inputContainer: {
+    
     flexDirection: 'row',
     padding: 10,
     borderTopWidth: 1,
@@ -169,18 +198,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   textInput: {
-    flex: 1,
+    flexDirection: 'row',
+    flexGrow: 3,
     height: 40,
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 5,
     marginRight: 10,
     paddingLeft: 10,
+    maxWidth: '70%',
+    minWidth: '70%',
   },
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-evenly',
-    width: '50%',
+    width: '30%',
   },
 });
 
