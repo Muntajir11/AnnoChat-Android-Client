@@ -37,6 +37,8 @@
     });
 
     socket.on('chat message', (data) => {
+        console.table(data);
+        
         const item = document.createElement('li');
         item.textContent = `${data.senderId}: ${data.msg}`;
         document.getElementById('messages').appendChild(item);
@@ -44,24 +46,36 @@
     });
 
     socket.on('user disconnected', (userId) => {
-        document.getElementById('heading').textContent = `User ${userId} disconnected.`;
+        document.getElementById('heading').textContent = `Stranger disconnected.`;
     });
 
     document.getElementById('send').addEventListener('click', (event) => {
         event.preventDefault();  
         const msg = document.getElementById('input').value;
-        console.log(msg);
-        console.log(window.roomId);
+        
+        console.log({ msg: msg, roomId: window.roomId });
         
         if (msg && window.roomId) {
-            socket.emit('chat message', msg, window.roomId);
-            document.getElementById('input').value = ''; 
+            const item = document.createElement('li');
+            item.textContent = `You: ${msg}`; 
+            document.getElementById('messages').appendChild(item);
+            window.scrollTo(0, document.body.scrollHeight);
+
+            socket.emit('chat message', { msg: msg, roomId: window.roomId });
+
+            document.getElementById('input').value = '';
         }
     });
 
     document.getElementById('disconnect').addEventListener('click', () => {
-        socket.emit('disconnect');  // Trigger socket disconnect
-    });
+  if (window.roomId) {
+    socket.disconnect(); 
+    window.roomId = null; 
+    document.getElementById('heading').textContent = 'Waiting for a match . . . !';
+    document.getElementById('messages').innerHTML = ''; 
+  }
+});
+
   </script>
 </body>
 </html>
