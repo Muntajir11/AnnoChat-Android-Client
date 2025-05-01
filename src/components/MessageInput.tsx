@@ -35,7 +35,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         onPress={onDisconnect}
         activeOpacity={0.7}
       >
-        <Icon name="close-circle" size={24} color="#F44336" />
+        <Icon name="close-circle" size={28} color="#F44336" />
       </TouchableOpacity>
       
       <View style={styles.inputContainer}>
@@ -72,18 +72,18 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 0,
   },
   disconnectButton: {
-    padding: 8,
-    marginRight: 8,
+    padding: 4,
+    marginRight: 4,
   },
   inputContainer: {
     flex: 1,
     backgroundColor: '#2A2A2A',
-    borderRadius: 24,
+    borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: Platform.OS === 'ios' ? 12 : 4,
+    paddingVertical: Platform.OS === 'ios' ? 14 : 14,
     marginRight: 8,
   },
   input: {

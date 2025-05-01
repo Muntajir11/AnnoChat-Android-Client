@@ -14,7 +14,7 @@ export const Header: React.FC<HeaderProps> = ({ isConnected }) => {
       end={{ x: 1, y: 0 }}
       style={styles.header}
     >
-      <Text style={styles.appName}>AnonyChat</Text>
+      <Text style={styles.appName}>AnnoChat 👻</Text>
       <View style={styles.statusContainer}>
         <View 
           style={[
@@ -45,6 +45,10 @@ const styles = StyleSheet.create({
   },
   appName: {
     fontSize: 22,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    textAlign: 'center',
+    textShadowColor: '#000',
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
