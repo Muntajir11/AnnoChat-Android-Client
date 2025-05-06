@@ -21,12 +21,12 @@ const App = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [roomId, setRoomId] = useState<string | null>(null);
 
-  // single socket instance, but don't auto‐connect
+
   const socketRef = useRef<Socket>(
     io(SERVER_URL, { autoConnect: false })
   );
 
-  // connect when user presses "Find Chat"
+
   const handleFindChat = () => {
     if (!socketRef.current.connected) {
       socketRef.current.connect();
@@ -37,7 +37,7 @@ const App = () => {
   useEffect(() => {
     const socket = socketRef.current;
 
-    // when matched into a room
+
     socket.on('matched', ({ roomId: newRoomId, partnerId }) => {
       setIsSearching(false);
       setIsConnected(true);
@@ -52,7 +52,7 @@ const App = () => {
       ]);
     });
 
-    // incoming chat messages
+ 
     socket.on('chat message', ({ msg, senderId }) => {
       setMessages(prev => [
         ...prev,
@@ -65,7 +65,7 @@ const App = () => {
       ]);
     });
 
-    // partner disconnected — only show system message, keep chat UI up
+    
     socket.on('user disconnected', () => {
       setMessages(prev => [
         ...prev,
@@ -76,7 +76,7 @@ const App = () => {
           timestamp: new Date(),
         },
       ]);
-      // do NOT reset isConnected or roomId here
+      
     });
 
     return () => {
@@ -89,7 +89,7 @@ const App = () => {
   const handleSendMessage = (text: string) => {
     if (!text.trim() || !roomId) return;
 
-    // add local message
+
     const newMessage: Message = {
       id: `you-${Date.now()}`,
       text,
@@ -98,7 +98,7 @@ const App = () => {
     };
     setMessages(prev => [...prev, newMessage]);
 
-    // send to server
+
     socketRef.current.emit('chat message', {
       roomId,
       msg: text,
@@ -107,7 +107,6 @@ const App = () => {
 
   const handleDisconnect = () => {
     if (socketRef.current.connected && roomId) {
-      // let server clean up
       socketRef.current.emit('leave_room', { roomId });
       socketRef.current.disconnect();
     }
