@@ -1,12 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { LinearGradient } from 'react-native-linear-gradient';
+import LinearGradient from 'react-native-linear-gradient'; 
 
 interface HeaderProps {
   isConnected: boolean;
+  onlineUsers: number;    
 }
 
-export const Header: React.FC<HeaderProps> = ({ isConnected }) => {
+export const Header: React.FC<HeaderProps> = ({ isConnected, onlineUsers }) => {
   return (
     <LinearGradient
       colors={['#4A00E0', '#8E2DE2']}
@@ -14,17 +15,28 @@ export const Header: React.FC<HeaderProps> = ({ isConnected }) => {
       end={{ x: 1, y: 0 }}
       style={styles.header}
     >
-      <Text style={styles.appName}>AnnoChat 👻</Text>
-      <View style={styles.statusContainer}>
-        <View 
-          style={[
-            styles.statusIndicator, 
-            isConnected ? styles.connected : styles.disconnected
-          ]} 
-        />
-        <Text style={styles.statusText}>
-          {isConnected ? 'Connected' : 'Disconnected'}
-        </Text>
+      <View style={styles.leftContainer}>
+        <Text style={styles.appName}>AnnoChat</Text>
+      </View>
+
+      <View style={styles.rightContainer}>
+        <View style={styles.statusRow}>
+          <View
+            style={[
+              styles.statusIndicator,
+              isConnected ? styles.connected : styles.disconnected
+            ]}
+          />
+          <Text style={styles.statusText}>
+            {isConnected ? 'Connected' : 'Disconnected'}
+          </Text>
+        </View>
+        
+        <View style={styles.onlineContainer}>
+          <Text style={styles.onlineText}>
+            {onlineUsers} online
+          </Text>
+        </View>
       </View>
     </LinearGradient>
   );
@@ -32,8 +44,8 @@ export const Header: React.FC<HeaderProps> = ({ isConnected }) => {
 
 const styles = StyleSheet.create({
   header: {
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -43,23 +55,33 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 3,
   },
-  appName: {
-    fontSize: 22,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    textAlign: 'center',
-    textShadowColor: '#000',
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+  leftContainer: {
+    flex: 1,
+    alignItems: 'flex-start',
   },
-  statusContainer: {
+  rightContainer: {
+    alignItems: 'flex-end',
+  },
+  statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
+  onlineContainer: {
+    alignItems: 'flex-end',
+    marginTop: 2,
+  },
+  appName: {
+    fontSize: 20,
+    letterSpacing: 1,
+    fontFamily: "curve", 
+    textTransform: 'uppercase',
+    // fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
   statusIndicator: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     marginRight: 6,
   },
   connected: {
@@ -69,7 +91,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#F44336',
   },
   statusText: {
+    fontFamily: "curve",
+    letterSpacing: 1,
     fontSize: 14,
     color: '#FFFFFF',
+    fontWeight: '500',
+  },
+  onlineText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    opacity: 0.8,
+    fontFamily: "curve",
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginTop: 2,
   },
 });

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import io, { Socket } from 'socket.io-client';
 import {
@@ -20,25 +21,48 @@ const App = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [roomId, setRoomId] = useState<string | null>(null);
+  const [onlineUsers, setOnlineUsers] = useState<number>(0);
 
+  //
+  // 1) Presence socket: manual connect/disconnect
+  //
+  const socketOnlineRef = useRef<Socket>(
+    io(`${SERVER_URL}/presence`, { autoConnect: false })
+  );
 
-  const socketRef = useRef<Socket>(
+  //
+  // 2) Chat socket: on-demand matchmaking
+  //
+  const socketChatRef = useRef<Socket>(
     io(SERVER_URL, { autoConnect: false })
   );
 
-
-  const handleFindChat = () => {
-    if (!socketRef.current.connected) {
-      socketRef.current.connect();
-    }
-    setIsSearching(true);
-  };
-
+  //
+  // Presence: connect once & clean up on unmount
+  //
   useEffect(() => {
-    const socket = socketRef.current;
+    const presenceSocket = socketOnlineRef.current;
 
+    // connect on mount
+    if (!presenceSocket.connected) {
+      presenceSocket.connect();
+    }
 
-    socket.on('matched', ({ roomId: newRoomId, partnerId }) => {
+    presenceSocket.on('onlineUsers', setOnlineUsers);
+
+    return () => {
+      presenceSocket.off('onlineUsers', setOnlineUsers);
+      presenceSocket.disconnect();
+    };
+  }, []);
+
+  //
+  // Chat: wire up events (match, message, disconnect)
+  //
+  useEffect(() => {
+    const chatSocket = socketChatRef.current;
+
+    chatSocket.on('matched', ({ roomId: newRoomId, partnerId }) => {
       setIsSearching(false);
       setIsConnected(true);
       setRoomId(newRoomId);
@@ -52,8 +76,7 @@ const App = () => {
       ]);
     });
 
- 
-    socket.on('chat message', ({ msg, senderId }) => {
+    chatSocket.on('chat message', ({ msg }) => {
       setMessages(prev => [
         ...prev,
         {
@@ -65,8 +88,7 @@ const App = () => {
       ]);
     });
 
-    
-    socket.on('user disconnected', () => {
+    chatSocket.on('user disconnected', () => {
       setMessages(prev => [
         ...prev,
         {
@@ -76,19 +98,32 @@ const App = () => {
           timestamp: new Date(),
         },
       ]);
-      
+      // setIsConnected(false);
     });
 
     return () => {
-      socket.off('matched');
-      socket.off('chat message');
-      socket.off('user disconnected');
+      chatSocket.off('matched');
+      chatSocket.off('chat message');
+      chatSocket.off('user disconnected');
     };
   }, []);
 
+  //
+  // Enter matchmaking queue on demand
+  //
+  const handleFindChat = () => {
+    const chatSocket = socketChatRef.current;
+    if (!chatSocket.connected) {
+      chatSocket.connect();
+    }
+    setIsSearching(true);
+  };
+
+  //
+  // Send a chat message
+  //
   const handleSendMessage = (text: string) => {
     if (!text.trim() || !roomId) return;
-
 
     const newMessage: Message = {
       id: `you-${Date.now()}`,
@@ -98,17 +133,20 @@ const App = () => {
     };
     setMessages(prev => [...prev, newMessage]);
 
-
-    socketRef.current.emit('chat message', {
+    socketChatRef.current.emit('chat message', {
       roomId,
       msg: text,
     });
   };
 
+  //
+  // Leave chat & disconnect
+  //
   const handleDisconnect = () => {
-    if (socketRef.current.connected && roomId) {
-      socketRef.current.emit('leave_room', { roomId });
-      socketRef.current.disconnect();
+    const chatSocket = socketChatRef.current;
+    if (chatSocket.connected && roomId) {
+      chatSocket.emit('leave_room', { roomId });
+      chatSocket.disconnect();
     }
     setIsConnected(false);
     setIsSearching(false);
@@ -120,7 +158,11 @@ const App = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121212" />
 
-      <Header isConnected={isConnected} />
+      {/* Header now shows real-time onlineUsers */}
+      <Header
+        isConnected={isConnected}
+        onlineUsers={onlineUsers}
+      />
 
       <View style={styles.content}>
         {!isConnected ? (
