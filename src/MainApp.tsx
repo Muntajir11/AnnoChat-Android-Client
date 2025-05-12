@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import io, { Socket } from 'socket.io-client';
 import { Header } from './components/Header';
 import { ChatWindow } from './components/ChatWindow';
@@ -9,7 +10,7 @@ import { Message } from '../types';
 
 const SERVER_URL = 'http://10.0.2.2:5000';
 
-export const MainApp = () => {
+export const MainApp = ({ navigation }: any) => {
   const [isConnected, setIsConnected] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -117,6 +118,13 @@ export const MainApp = () => {
               Chat anonymously with strangers from around the world
             </Text>
             <FindButton onPress={handleFindChat} isSearching={isSearching} />
+
+          <TouchableOpacity
+          style={styles.settingsButton}
+          onPress={() => navigation.navigate('Settings')}
+        >
+          <Ionicons name="settings-outline" size={28} color="#888" />
+        </TouchableOpacity>
           </View>
         ) : (
           <>
@@ -124,6 +132,7 @@ export const MainApp = () => {
             <MessageInput onSendMessage={handleSendMessage} onDisconnect={handleDisconnect} />
           </>
         )}
+   
       </View>
     </>
   );
@@ -133,12 +142,14 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
+    backgroundColor : '#111',
   },
   welcomeContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
+    backgroundColor: '#111',
   },
   welcomeText: {
     fontSize: 18,
@@ -146,5 +157,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 40,
     lineHeight: 26,
+  },
+  settingsButton: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    padding: 10,
+    backgroundColor: '#1c1c1c',
+    borderRadius: 100,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
 });
