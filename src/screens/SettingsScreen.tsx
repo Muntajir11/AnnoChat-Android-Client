@@ -5,15 +5,15 @@ export const SettingsScreen = ({ navigation }: any) => {
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Settings</Text>
-      <TouchableOpacity style={styles.option}>
-        <Text style={styles.text}>Account Settings</Text>
-      </TouchableOpacity>
+
       <TouchableOpacity style={styles.option}>
         <Text style={styles.text}>Support & Feedback</Text>
       </TouchableOpacity>
+
       <TouchableOpacity style={styles.option}>
         <Text style={styles.text}>About</Text>
       </TouchableOpacity>
+      
       <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
         <Text style={styles.backText}>← Back</Text>
       </TouchableOpacity>

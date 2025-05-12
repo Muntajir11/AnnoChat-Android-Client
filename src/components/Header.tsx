@@ -73,9 +73,8 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 20,
     letterSpacing: 1,
-    fontFamily: "curve", 
+    fontWeight: 'bold',
     textTransform: 'uppercase',
-    // fontWeight: 'bold',
     color: '#FFFFFF',
   },
   statusIndicator: {
