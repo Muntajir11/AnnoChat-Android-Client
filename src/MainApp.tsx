@@ -8,7 +8,7 @@ import { MessageInput } from './components/MessageInput';
 import { FindButton } from './components/FindButton';
 import { Message } from '../types';
 
-const SERVER_URL = 'http://10.0.2.2:5000';
+const SERVER_URL = 'https://muntajir.me';
 
 export const MainApp = ({ navigation }: any) => {
   const [isConnected, setIsConnected] = useState(false);

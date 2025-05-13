@@ -6,11 +6,17 @@ export const SettingsScreen = ({ navigation }: any) => {
     <View style={styles.container}>
       <Text style={styles.header}>Settings</Text>
 
-      <TouchableOpacity style={styles.option}>
+      <TouchableOpacity 
+        style={styles.option}
+        onPress={() => navigation.navigate('SupportFeedback')}
+      >
         <Text style={styles.text}>Support & Feedback</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.option}>
+      <TouchableOpacity 
+        style={styles.option}
+        onPress={() => navigation.navigate('About')}
+      >
         <Text style={styles.text}>About</Text>
       </TouchableOpacity>
       

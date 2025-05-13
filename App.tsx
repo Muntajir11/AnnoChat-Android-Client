@@ -6,6 +6,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { MainApp } from './src/MainApp';
 import { SettingsScreen } from './src/screens/SettingsScreen'; // create this screen
+import { AboutScreen } from './src/screens/AboutScreen';
+import { SupportFeedbackScreen } from './src/screens/SupportFeedBackScreen';
 
 const Stack = createStackNavigator();
 
@@ -37,6 +39,8 @@ const App = () => {
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="Main" component={MainApp} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
+            <Stack.Screen name="About" component={AboutScreen} />
+            <Stack.Screen name="SupportFeedback" component={SupportFeedbackScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       )}
