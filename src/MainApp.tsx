@@ -17,22 +17,53 @@ export const MainApp = ({ navigation }: any) => {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<number>(0);
 
-  const socketOnlineRef = useRef<Socket>(io(`${SERVER_URL}/presence`, { autoConnect: false }));
-  const socketChatRef = useRef<Socket>(io(SERVER_URL, { autoConnect: false }));
+  // —————— SOCKETS ——————
 
+  // Presence namespace, forced to websocket transport
+  const socketOnlineRef = useRef<Socket>(
+    io(`${SERVER_URL}/presence`, {
+      autoConnect: false,
+      transports: ['websocket'],
+      secure: true,
+      path: '/socket.io',
+    })
+  );
+
+  // Root namespace for matchmaking & chat
+  const socketChatRef = useRef<Socket>(
+    io(SERVER_URL, {
+      autoConnect: false,
+      transports: ['websocket'],
+      secure: true,
+      path: '/socket.io',
+    })
+  );
+
+  // — Presence socket logic — 
   useEffect(() => {
     const presenceSocket = socketOnlineRef.current;
-    if (!presenceSocket.connected) presenceSocket.connect();
-    presenceSocket.on('onlineUsers', setOnlineUsers);
+
+    // Register handlers before connecting
+    presenceSocket.on('connect_error', (err) => {
+      console.log('[Presence Socket] Connection Error:', err.message);
+    });
+    presenceSocket.on('onlineUsers', (count: number) => {
+      setOnlineUsers(count);
+    });
+
+    // Now connect
+    presenceSocket.connect();
+
     return () => {
-      presenceSocket.off('onlineUsers', setOnlineUsers);
       presenceSocket.disconnect();
     };
   }, []);
 
+  // — Chat socket logic —
   useEffect(() => {
     const chatSocket = socketChatRef.current;
 
+    // Matched: join flow
     chatSocket.on('matched', ({ roomId: newRoomId }) => {
       setIsSearching(false);
       setIsConnected(true);
@@ -45,10 +76,14 @@ export const MainApp = ({ navigation }: any) => {
           timestamp: new Date(),
         },
       ]);
+
+      // Tell server to add us to the room
+      chatSocket.emit('join room', newRoomId);
     });
 
+    // Incoming messages
     chatSocket.on('chat message', ({ msg }) => {
-      setMessages(prev => [
+      setMessages((prev) => [
         ...prev,
         {
           id: `msg-${Date.now()}`,
@@ -59,8 +94,9 @@ export const MainApp = ({ navigation }: any) => {
       ]);
     });
 
+    // Partner disconnected
     chatSocket.on('user disconnected', () => {
-      setMessages(prev => [
+      setMessages((prev) => [
         ...prev,
         {
           id: `sysdisc-${Date.now()}`,
@@ -71,16 +107,23 @@ export const MainApp = ({ navigation }: any) => {
       ]);
     });
 
+    // Debug any connection errors
+    chatSocket.on('connect_error', (err) => {
+      console.log('[Chat Socket] Connection Error:', err.message);
+    });
+
     return () => {
-      chatSocket.off('matched');
-      chatSocket.off('chat message');
-      chatSocket.off('user disconnected');
+      chatSocket.disconnect();
     };
   }, []);
 
+  // — Handlers for UI buttons —
+
   const handleFindChat = () => {
     const chatSocket = socketChatRef.current;
-    if (!chatSocket.connected) chatSocket.connect();
+    if (!chatSocket.connected) {
+      chatSocket.connect();
+    }
     setIsSearching(true);
   };
 
@@ -92,7 +135,7 @@ export const MainApp = ({ navigation }: any) => {
       sender: 'user',
       timestamp: new Date(),
     };
-    setMessages(prev => [...prev, newMessage]);
+    setMessages((prev) => [...prev, newMessage]);
     socketChatRef.current.emit('chat message', { roomId, msg: text });
   };
 
@@ -108,6 +151,8 @@ export const MainApp = ({ navigation }: any) => {
     setMessages([]);
   };
 
+  // — UI Rendering —
+
   return (
     <>
       <Header isConnected={isConnected} onlineUsers={onlineUsers} />
@@ -118,21 +163,22 @@ export const MainApp = ({ navigation }: any) => {
               Chat anonymously with strangers from around the world
             </Text>
             <FindButton onPress={handleFindChat} isSearching={isSearching} />
-
-          <TouchableOpacity
-          style={styles.settingsButton}
-          onPress={() => navigation.navigate('Settings')}
-        >
-          <Ionicons name="settings-outline" size={28} color="#888" />
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.settingsButton}
+              onPress={() => navigation.navigate('Settings')}
+            >
+              <Ionicons name="settings-outline" size={28} color="#888" />
+            </TouchableOpacity>
           </View>
         ) : (
           <>
             <ChatWindow messages={messages} />
-            <MessageInput onSendMessage={handleSendMessage} onDisconnect={handleDisconnect} />
+            <MessageInput
+              onSendMessage={handleSendMessage}
+              onDisconnect={handleDisconnect}
+            />
           </>
         )}
-   
       </View>
     </>
   );
@@ -142,7 +188,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
-    backgroundColor : '#111',
+    backgroundColor: '#111',
   },
   welcomeContainer: {
     flex: 1,
