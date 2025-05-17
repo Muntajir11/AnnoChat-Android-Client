@@ -107,10 +107,6 @@ export const MainApp = ({ navigation }: any) => {
       ]);
     });
 
-    // Debug any connection errors
-    chatSocket.on('connect_error', (err) => {
-      console.log('[Chat Socket] Connection Error:', err.message);
-    });
 
     return () => {
       chatSocket.disconnect();
@@ -141,8 +137,7 @@ export const MainApp = ({ navigation }: any) => {
 
   const handleDisconnect = () => {
     const chatSocket = socketChatRef.current;
-    if (chatSocket.connected && roomId) {
-      chatSocket.emit('leave_room', { roomId });
+    if (chatSocket.connected) {
       chatSocket.disconnect();
     }
     setIsConnected(false);
