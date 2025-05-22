@@ -33,6 +33,9 @@ local.properties
 .cxx/
 *.keystore
 !debug.keystore
+android/app/my-upload-key.keystore
+
+
 
 # node.js
 #
