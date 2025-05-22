@@ -22,7 +22,7 @@ export const SupportFeedbackScreen = ({ navigation }: any) => {
     }
     
     // Prepare email content
-    const recipient = 'muntajir.annochat.com@gmail.com';
+    const recipient = 'annochat.social@gmail.com';
     const subject = encodeURIComponent(`Feedback from ${name}`);
     const body = encodeURIComponent(`Name: ${name}\nMessage:\n${message}`);
     
@@ -109,7 +109,7 @@ export const SupportFeedbackScreen = ({ navigation }: any) => {
         <View style={styles.directContactContainer}>
           <Text style={styles.directContactTitle}>Direct Contact</Text>
           <Text style={styles.directContactText}>
-            Email: muntajir.annochat.com@gmail.com{'\n'}
+            Email: annochat.social@gmail.com{'\n'}
             Hours: Monday-Friday, 9AM-5PM IST
           </Text>
         </View>

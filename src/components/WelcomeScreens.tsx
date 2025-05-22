@@ -106,7 +106,7 @@ const WelcomeScreens = ({onDone}: {onDone: () => void}) => {
                 {'\n\n'}
                 3. You are responsible for the content you share.{'\n\n'}
                 4. You will not use AnnoChat for illegal activities.{'\n\n'}
-                5. You must be at least 13 years old to use this app.{'\n\n'}
+                5. You must be at least 18 years old to use this app.{'\n\n'}
                 Please respect others and enjoy chatting!
               </Text>
             </ScrollView>

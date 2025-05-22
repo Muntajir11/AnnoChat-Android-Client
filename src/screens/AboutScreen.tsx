@@ -62,11 +62,11 @@ export const AboutScreen = ({navigation}: any) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Contact</Text>
           <Text style={styles.sectionText}>
-            Email: muntajir.annochat.com@gmail.com{'\n'}
+            Email: annochat.social@gmail.com{'\n'}
             <Text
               style={styles.linkText}
-              onPress={() => Linking.openURL('https://muntajir11.github.io/AnnoChatNextjs/')}>
-              Website: www.annochat.com
+              onPress={() => Linking.openURL('https://annochat.social/')}>
+              Website: www.annochat.social
             </Text> {'\n'}
             {/* Follow us on social media to stay updated with the latest features
             and improvements. */}
