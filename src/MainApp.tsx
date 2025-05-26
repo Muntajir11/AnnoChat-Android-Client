@@ -9,6 +9,7 @@ import { FindButton } from './components/FindButton';
 import { Message } from '../types';
 
 const SERVER_URL = 'https://muntajir.me';
+const SOCKET_TOKEN_URL = 'https://www.annochat.social/api/get-socket-token';
 
 export const MainApp = ({ navigation }: any) => {
   const [isConnected, setIsConnected] = useState(false);
@@ -16,137 +17,142 @@ export const MainApp = ({ navigation }: any) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<number>(0);
+  const [strangerTyping, setStrangerTyping] = useState(false);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [status, setStatus] = useState<string>('Welcome!');
+  const [strangerLeft, setStrangerLeft] = useState(false);
 
-  // —————— SOCKETS ——————
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const socketOnlineRef = useRef<Socket>(io(`${SERVER_URL}/presence`, {
+    autoConnect: false, transports: ['websocket'], secure: true, path: '/socket.io',
+  }));
+  const socketChatRef = useRef<Socket | null>(null);
 
-  // Presence namespace, forced to websocket transport
-  const socketOnlineRef = useRef<Socket>(
-    io(`${SERVER_URL}/presence`, {
-      autoConnect: false,
-      transports: ['websocket'],
-      secure: true,
-      path: '/socket.io',
-    })
-  );
+  // Emit typing events
+  const handleTyping = (isTyping: boolean) => {
+    if (!roomId || !isConnected) return;
+    socketChatRef.current?.emit('typing', { roomId, isTyping });
+  };
 
-  // Root namespace for matchmaking & chat
-  const socketChatRef = useRef<Socket>(
-    io(SERVER_URL, {
-      autoConnect: false,
-      transports: ['websocket'],
-      secure: true,
-      path: '/socket.io',
-    })
-  );
+  // Fetch auth token
+  const fetchToken = async () => {
+    try {
+      const res = await fetch(SOCKET_TOKEN_URL);
+      const data = await res.json();
+      setAuthToken(data.token || null);
+    } catch {
+      console.error('Failed to fetch token');
+    }
+  };
 
-  // — Presence socket logic — 
+  // Presence socket
   useEffect(() => {
-    const presenceSocket = socketOnlineRef.current;
-
-    // Register handlers before connecting
-    presenceSocket.on('connect_error', (err) => {
-      console.log('[Presence Socket] Connection Error:', err.message);
-    });
-    presenceSocket.on('onlineUsers', (count: number) => {
-      setOnlineUsers(count);
-    });
-
-    // Now connect
-    presenceSocket.connect();
-
+    const pres = socketOnlineRef.current;
+    pres.on('onlineUsers', setOnlineUsers);
+    pres.connect();
     return () => {
-      presenceSocket.disconnect();
+      pres.disconnect();
+      pres.off('onlineUsers', setOnlineUsers);
     };
   }, []);
 
-  // — Chat socket logic —
+  // Chat socket
   useEffect(() => {
-    const chatSocket = socketChatRef.current;
+    fetchToken();
+    if (!authToken) return;
 
-    // Matched: join flow
-    chatSocket.on('matched', ({ roomId: newRoomId }) => {
+    const chat = io(SERVER_URL, {
+      autoConnect: false, transports: ['websocket'], secure: true, path: '/socket.io',
+      auth: { token: authToken },
+    });
+    socketChatRef.current = chat;
+
+    chat.on('matched', ({ roomId: newRoomId }) => {
       setIsSearching(false);
       setIsConnected(true);
       setRoomId(newRoomId);
-      setMessages([
-        {
-          id: 'system-1',
-          text: 'You are now chatting with a stranger. Say hi!',
-          sender: 'system',
-          timestamp: new Date(),
-        },
-      ]);
-
-      // Tell server to add us to the room
-      chatSocket.emit('join room', newRoomId);
+      setStrangerLeft(false);            
+      setMessages([{
+        id: 'system-1',
+        text: 'You are now chatting with a stranger. Say hi!',
+        sender: 'system',
+        timestamp: new Date(),
+      }]);
+      chat.emit('join room', newRoomId);
     });
 
-    // Incoming messages
-    chatSocket.on('chat message', ({ msg }) => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `msg-${Date.now()}`,
-          text: msg,
-          sender: 'stranger',
-          timestamp: new Date(),
-        },
-      ]);
+    chat.on('chat message', ({ msg }) => {
+      setMessages(m => [...m, {
+        id: `str-${Date.now()}`, text: msg,
+        sender: 'stranger', timestamp: new Date(),
+      }]);
     });
 
-    // Partner disconnected
-    chatSocket.on('user disconnected', () => {
-      setMessages((prev) => [
-        ...prev,
-        {
+    chat.on('typing', ({ isTyping }) => setStrangerTyping(isTyping));
+
+    chat.on('user disconnected', () => {
+      if (!strangerLeft) {
+        setMessages(m => [...m, {
           id: `sysdisc-${Date.now()}`,
           text: 'Stranger has disconnected. Tap Exit to leave.',
           sender: 'system',
           timestamp: new Date(),
-        },
-      ]);
+        }]);
+        setStrangerLeft(true);
+      }
+
+      // leaveRoom();
+      chat.disconnect();
+      setStrangerTyping(false);
+
     });
 
-
+    // chat.connect();
     return () => {
-      chatSocket.disconnect();
+      chat.disconnect();
+      chat.removeAllListeners();
     };
-  }, []);
-
-  // — Handlers for UI buttons —
+  }, [authToken]);
 
   const handleFindChat = () => {
-    const chatSocket = socketChatRef.current;
-    if (!chatSocket.connected) {
-      chatSocket.connect();
-    }
+    if (isConnected && roomId) leaveRoom();
+    setRoomId(null);
+    setMessages([]);
+    setStatus('Searching for a match...');
     setIsSearching(true);
+    socketChatRef.current?.connect();
+  };
+
+  const leaveRoom = () => {
+    const chat = socketChatRef.current;
+    if (chat && roomId) chat.emit('leave room', { roomId });
+    if (chat && chat.connected) {
+      chat.disconnect();
+    }
+
+    setIsConnected(false);
+    setRoomId(null);
+    setMessages([]);
+    setStrangerTyping(false);
   };
 
   const handleSendMessage = (text: string) => {
     if (!text.trim() || !roomId) return;
-    const newMessage: Message = {
-      id: `you-${Date.now()}`,
-      text,
-      sender: 'user',
-      timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, newMessage]);
-    socketChatRef.current.emit('chat message', { roomId, msg: text });
+    setMessages(m => [...m, {
+      id: `you-${Date.now()}`, text, sender: 'user', timestamp: new Date(),
+    }]);
+    socketChatRef.current?.emit('chat message', { roomId, msg: text });
+
+    clearTimeout(typingTimeoutRef.current!);
+    handleTyping(false);
+    typingTimeoutRef.current = null;
   };
 
-  const handleDisconnect = () => {
-    const chatSocket = socketChatRef.current;
-    if (chatSocket.connected) {
-      chatSocket.disconnect();
-    }
-    setIsConnected(false);
-    setIsSearching(false);
-    setRoomId(null);
-    setMessages([]);
+  const handleInputChange = (text: string) => {
+    handleTyping(true);
+    clearTimeout(typingTimeoutRef.current!);
+    typingTimeoutRef.current = setTimeout(() => handleTyping(false), 1500);
   };
-
-  // — UI Rendering —
 
   return (
     <>
@@ -167,10 +173,11 @@ export const MainApp = ({ navigation }: any) => {
           </View>
         ) : (
           <>
-            <ChatWindow messages={messages} />
+            <ChatWindow messages={messages} isTyping={strangerTyping} />
             <MessageInput
               onSendMessage={handleSendMessage}
-              onDisconnect={handleDisconnect}
+              onDisconnect={leaveRoom}
+              onChangeText={handleInputChange}
             />
           </>
         )}
@@ -180,35 +187,19 @@ export const MainApp = ({ navigation }: any) => {
 };
 
 const styles = StyleSheet.create({
-  content: {
-    flex: 1,
-    padding: 16,
-    backgroundColor: '#111',
-  },
+  content: { flex: 1, padding: 16, backgroundColor: '#111' },
   welcomeContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    backgroundColor: '#111',
+    flex: 1, justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 24, backgroundColor: '#111',
   },
   welcomeText: {
-    fontSize: 18,
-    color: '#E0E0E0',
-    textAlign: 'center',
-    marginBottom: 40,
-    lineHeight: 26,
+    fontSize: 18, color: '#E0E0E0', textAlign: 'center',
+    marginBottom: 40, lineHeight: 26,
   },
   settingsButton: {
-    position: 'absolute',
-    bottom: 4,
-    left: 4,
-    padding: 10,
-    backgroundColor: '#1c1c1c',
-    borderRadius: 100,
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    position: 'absolute', bottom: 4, left: 4, padding: 10,
+    backgroundColor: '#1c1c1c', borderRadius: 100,
+    shadowColor: '#000', shadowOpacity: 0.3,
+    shadowRadius: 4, elevation: 5,
   },
 });

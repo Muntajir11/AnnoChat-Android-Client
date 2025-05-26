@@ -10,16 +10,17 @@ import { Message } from '../../types';
 
 interface ChatWindowProps {
   messages: Message[];
+  isTyping: boolean;
 }
 
-export const ChatWindow: React.FC<ChatWindowProps> = ({ messages }) => {
+export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isTyping }) => {
   const flatListRef = React.useRef<FlatList>(null);
 
   React.useEffect(() => {
     if (messages.length > 0 && flatListRef.current) {
       flatListRef.current.scrollToEnd({ animated: true });
     }
-  }, [messages]);
+  }, [messages, isTyping]);
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isUser = item.sender === 'user';
@@ -76,6 +77,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages }) => {
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
         />
+      )}
+
+      {isTyping && (
+        <View style={styles.typingContainer}>
+          <Text style={styles.typingText}>Stranger is typing…</Text>
+        </View>
       )}
     </View>
   );
@@ -153,5 +160,16 @@ const styles = StyleSheet.create({
     color: '#AAAAAA',
     fontSize: 14,
     fontStyle: 'italic',
+  },
+
+  // — Typing indicator styles —
+  typingContainer: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    alignItems: 'flex-start',
+  },
+  typingText: {
+    fontStyle: 'italic',
+    color: '#AAAAAA',
   },
 });

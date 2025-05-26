@@ -12,19 +12,28 @@ import Icon from 'react-native-vector-icons/Ionicons';
 interface MessageInputProps {
   onSendMessage: (text: string) => void;
   onDisconnect: () => void;
+  onChangeText: (text: string) => void;
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
   onSendMessage,
   onDisconnect,
+  onChangeText,
 }) => {
   const [message, setMessage] = useState('');
 
+  const handleChangeText = (text: string) => {
+    setMessage(text);
+    onChangeText(text); 
+  };
+
   const handleSend = () => {
-    if (message.trim()) {
-      onSendMessage(message);
+    const trimmed = message.trim();
+    if (trimmed) {
+      onSendMessage(trimmed);
       setMessage('');
-      Keyboard.dismiss();
+      // onChangeText(''); 
+      // Keyboard.dismiss();
     }
   };
 
@@ -37,14 +46,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       >
         <Icon name="close-circle" size={28} color="#F44336" />
       </TouchableOpacity>
-      
+
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.input}
           placeholder="Type a message..."
           placeholderTextColor="#888888"
           value={message}
-          onChangeText={setMessage}
+          onChangeText={handleChangeText}
           multiline
           maxLength={500}
           returnKeyType="send"
@@ -52,7 +61,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           blurOnSubmit={true}
         />
       </View>
-      
+
       <TouchableOpacity
         style={[
           styles.sendButton,
