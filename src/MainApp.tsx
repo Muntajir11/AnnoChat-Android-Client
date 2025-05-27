@@ -24,17 +24,18 @@ export const MainApp = ({ navigation }: any) => {
 
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const socketOnlineRef = useRef<Socket>(io(`${SERVER_URL}/presence`, {
-    autoConnect: false, transports: ['websocket'], secure: true, path: '/socket.io',
+    autoConnect: false,
+    transports: ['websocket'],
+    secure: true,
+    path: '/socket.io',
   }));
   const socketChatRef = useRef<Socket | null>(null);
 
-  // Emit typing events
   const handleTyping = (isTyping: boolean) => {
     if (!roomId || !isConnected) return;
     socketChatRef.current?.emit('typing', { roomId, isTyping });
   };
 
-  // Fetch auth token
   const fetchToken = async () => {
     try {
       const res = await fetch(SOCKET_TOKEN_URL);
@@ -45,7 +46,6 @@ export const MainApp = ({ navigation }: any) => {
     }
   };
 
-  // Presence socket
   useEffect(() => {
     const pres = socketOnlineRef.current;
     pres.on('onlineUsers', setOnlineUsers);
@@ -56,58 +56,83 @@ export const MainApp = ({ navigation }: any) => {
     };
   }, []);
 
-  // Chat socket
   useEffect(() => {
     fetchToken();
+  }, []);
+
+  useEffect(() => {
     if (!authToken) return;
 
     const chat = io(SERVER_URL, {
-      autoConnect: false, transports: ['websocket'], secure: true, path: '/socket.io',
+      autoConnect: false,
+      transports: ['websocket'],
+      secure: true,
+      path: '/socket.io',
       auth: { token: authToken },
     });
+
     socketChatRef.current = chat;
 
     chat.on('matched', ({ roomId: newRoomId }) => {
       setIsSearching(false);
       setIsConnected(true);
       setRoomId(newRoomId);
-      setStrangerLeft(false);            
+      setStrangerLeft(false);
+
       setMessages([{
         id: 'system-1',
         text: 'You are now chatting with a stranger. Say hi!',
         sender: 'system',
         timestamp: new Date(),
       }]);
+
       chat.emit('join room', newRoomId);
+
+      setStatus(''); 
     });
 
     chat.on('chat message', ({ msg }) => {
       setMessages(m => [...m, {
-        id: `str-${Date.now()}`, text: msg,
-        sender: 'stranger', timestamp: new Date(),
+        id: `str-${Date.now()}`,
+        text: msg,
+        sender: 'stranger',
+        timestamp: new Date(),
       }]);
     });
 
-    chat.on('typing', ({ isTyping }) => setStrangerTyping(isTyping));
-
-    chat.on('user disconnected', () => {
-      if (!strangerLeft) {
-        setMessages(m => [...m, {
-          id: `sysdisc-${Date.now()}`,
-          text: 'Stranger has disconnected. Tap Exit to leave.',
-          sender: 'system',
-          timestamp: new Date(),
-        }]);
-        setStrangerLeft(true);
-      }
-
-      // leaveRoom();
-      chat.disconnect();
-      setStrangerTyping(false);
-
+    chat.on('typing', ({ isTyping }) => {
+      setStrangerTyping(isTyping);
     });
 
-    // chat.connect();
+chat.on('user disconnected', () => {
+  setMessages(prevMessages => {
+    const alreadyExists = prevMessages.some(
+      m => m.text === 'Stranger has disconnected. Tap Exit to leave.'
+    );
+    if (alreadyExists) return prevMessages;
+
+    return [
+      ...prevMessages,
+      {
+        id: `sysdisc-${Date.now()}`,
+        text: 'Stranger has disconnected. Tap Exit to leave.',
+        sender: 'system',
+        timestamp: new Date(),
+      },
+    ];
+  });
+
+  setStrangerLeft(true);
+  setStrangerTyping(false);
+});
+
+
+    chat.on('connect_error', (err) => {
+      console.error('Connection error:', err.message);
+      setIsSearching(false);
+      setStatus('Connection failed.');
+    });
+
     return () => {
       chat.disconnect();
       chat.removeAllListeners();
@@ -125,7 +150,10 @@ export const MainApp = ({ navigation }: any) => {
 
   const leaveRoom = () => {
     const chat = socketChatRef.current;
-    if (chat && roomId) chat.emit('leave room', { roomId });
+    if (chat && roomId) {
+      chat.emit('leave room', { roomId });
+    }
+
     if (chat && chat.connected) {
       chat.disconnect();
     }
@@ -134,29 +162,44 @@ export const MainApp = ({ navigation }: any) => {
     setRoomId(null);
     setMessages([]);
     setStrangerTyping(false);
+    setStatus('Welcome!')
   };
 
   const handleSendMessage = (text: string) => {
-    if (!text.trim() || !roomId) return;
+    if (!text.trim() || !roomId || strangerLeft) return;
+
     setMessages(m => [...m, {
-      id: `you-${Date.now()}`, text, sender: 'user', timestamp: new Date(),
+      id: `you-${Date.now()}`,
+      text,
+      sender: 'user',
+      timestamp: new Date(),
     }]);
+
     socketChatRef.current?.emit('chat message', { roomId, msg: text });
 
-    clearTimeout(typingTimeoutRef.current!);
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
     handleTyping(false);
     typingTimeoutRef.current = null;
   };
 
   const handleInputChange = (text: string) => {
     handleTyping(true);
-    clearTimeout(typingTimeoutRef.current!);
-    typingTimeoutRef.current = setTimeout(() => handleTyping(false), 1500);
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      handleTyping(false);
+    }, 1500);
   };
 
   return (
     <>
-      <Header isConnected={isConnected} onlineUsers={onlineUsers} />
+      <Header isConnected={isConnected} onlineUsers={onlineUsers} status={status} />
+
       <View style={styles.content}>
         {!isConnected ? (
           <View style={styles.welcomeContainer}>
@@ -187,19 +230,35 @@ export const MainApp = ({ navigation }: any) => {
 };
 
 const styles = StyleSheet.create({
-  content: { flex: 1, padding: 16, backgroundColor: '#111' },
+  content: {
+    flex: 1,
+    padding: 16,
+    backgroundColor: '#111',
+  },
   welcomeContainer: {
-    flex: 1, justifyContent: 'center', alignItems: 'center',
-    paddingHorizontal: 24, backgroundColor: '#111',
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    backgroundColor: '#111',
   },
   welcomeText: {
-    fontSize: 18, color: '#E0E0E0', textAlign: 'center',
-    marginBottom: 40, lineHeight: 26,
+    fontSize: 18,
+    color: '#E0E0E0',
+    textAlign: 'center',
+    marginBottom: 40,
+    lineHeight: 26,
   },
   settingsButton: {
-    position: 'absolute', bottom: 4, left: 4, padding: 10,
-    backgroundColor: '#1c1c1c', borderRadius: 100,
-    shadowColor: '#000', shadowOpacity: 0.3,
-    shadowRadius: 4, elevation: 5,
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    padding: 10,
+    backgroundColor: '#1c1c1c',
+    borderRadius: 100,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
 });

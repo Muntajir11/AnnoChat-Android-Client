@@ -1,22 +1,29 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient'; 
+import {View, Text, StyleSheet} from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 
 interface HeaderProps {
   isConnected: boolean;
-  onlineUsers: number;    
+  onlineUsers: number;
+  status?: string;
 }
 
-export const Header: React.FC<HeaderProps> = ({ isConnected, onlineUsers }) => {
+export const Header: React.FC<HeaderProps> = ({
+  isConnected,
+  onlineUsers,
+  status,
+}) => {
   return (
     <LinearGradient
       colors={['#4A00E0', '#8E2DE2']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
-      style={styles.header}
-    >
+      start={{x: 0, y: 0}}
+      end={{x: 1, y: 0}}
+      style={styles.header}>
       <View style={styles.leftContainer}>
         <Text style={styles.appName}>AnnoChat</Text>
+          {status ? (
+            <Text style={styles.secondaryStatusText}>{status}</Text>
+          ) : null}
       </View>
 
       <View style={styles.rightContainer}>
@@ -24,18 +31,19 @@ export const Header: React.FC<HeaderProps> = ({ isConnected, onlineUsers }) => {
           <View
             style={[
               styles.statusIndicator,
-              isConnected ? styles.connected : styles.disconnected
+              isConnected ? styles.connected : styles.disconnected,
             ]}
           />
           <Text style={styles.statusText}>
             {isConnected ? 'Connected' : 'Disconnected'}
           </Text>
-        </View>
+
         
+        </View>
+
         <View style={styles.onlineContainer}>
-          <Text style={styles.onlineText}>
-            {onlineUsers} online
-          </Text>
+          
+          <Text style={styles.onlineText}>{onlineUsers} online</Text>
         </View>
       </View>
     </LinearGradient>
@@ -51,7 +59,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.3,
     shadowRadius: 3,
   },
@@ -90,7 +98,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F44336',
   },
   statusText: {
-    fontFamily: "curve",
+    fontFamily: 'curve',
     letterSpacing: 1,
     fontSize: 14,
     color: '#FFFFFF',
@@ -100,10 +108,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#FFFFFF',
     opacity: 0.8,
-    fontFamily: "curve",
+    fontFamily: 'curve',
     fontWeight: '500',
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginTop: 2,
+  },
+  secondaryStatusText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    opacity: 0.8,
+    fontStyle: 'italic',
+    marginTop: 2,
+    fontFamily: 'curve',
   },
 });
