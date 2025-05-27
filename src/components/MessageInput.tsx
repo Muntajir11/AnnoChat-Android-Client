@@ -32,8 +32,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     if (trimmed) {
       onSendMessage(trimmed);
       setMessage('');
-      // onChangeText(''); 
-      // Keyboard.dismiss();
     }
   };
 
@@ -51,7 +49,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         <TextInput
           style={styles.input}
           placeholder="Type a message..."
-          placeholderTextColor="#888888"
+          placeholderTextColor="rgba(255, 255, 255, 0.5)"
           value={message}
           onChangeText={handleChangeText}
           multiline
@@ -80,41 +78,59 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 0,
+    alignItems: 'flex-end',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingBottom: Platform.OS === 'ios' ? 16 : 12,
   },
   disconnectButton: {
-    padding: 4,
-    marginRight: 4,
+    padding: 8,
+    marginRight: 12,
+    marginBottom: 4,
+    borderRadius: 20,
+    backgroundColor: 'rgba(244, 67, 54, 0.15)',
   },
   inputContainer: {
     flex: 1,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: Platform.OS === 'ios' ? 14 : 14,
-    marginRight: 8,
+    backgroundColor: 'rgba(60, 60, 80, 0.8)', // Match the theme
+    borderRadius: 20,
+    paddingHorizontal: 18,
+    paddingVertical: Platform.OS === 'ios' ? 14 : 12,
+    marginRight: 12,
+    minHeight: 48,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   input: {
     color: '#FFFFFF',
     fontSize: 16,
-    maxHeight: 100,
+    lineHeight: 20,
+    maxHeight: 120,
     padding: 0,
+    margin: 0,
+    fontWeight: '400',
   },
   sendButton: {
-    backgroundColor: '#4A00E0',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    backgroundColor: '#6B46C1', // Purple to match theme
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.5,
+    elevation: 6,
+    shadowColor: '#6B46C1',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
   },
   sendButtonDisabled: {
-    backgroundColor: '#555555',
+    backgroundColor: 'rgba(107, 70, 193, 0.4)',
+    shadowOpacity: 0.1,
   },
 });

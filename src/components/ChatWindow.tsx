@@ -16,13 +16,25 @@ interface ChatWindowProps {
 export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isTyping }) => {
   const flatListRef = React.useRef<FlatList>(null);
 
+  // Scroll to end when new messages are added
   React.useEffect(() => {
     if (messages.length > 0 && flatListRef.current) {
-      flatListRef.current.scrollToEnd({ animated: true });
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 50);
     }
-  }, [messages, isTyping]);
+  }, [messages.length]);
 
-  const renderMessage = ({ item }: { item: Message }) => {
+  // Scroll to end when typing indicator changes
+  React.useEffect(() => {
+    if (flatListRef.current) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  }, [isTyping]);
+
+  const renderMessage = ({ item, index }: { item: Message; index: number }) => {
     const isUser = item.sender === 'user';
     const isSystem = item.sender === 'system';
 
@@ -60,6 +72,23 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isTyping }) =>
     );
   };
 
+  const renderFooter = () => {
+    if (!isTyping) return <View style={styles.footerSpacer} />;
+    
+    return (
+      <View style={styles.typingContainer}>
+        <View style={styles.typingBubble}>
+          <Text style={styles.typingText}>Stranger is typing…</Text>
+        </View>
+      </View>
+    );
+  };
+
+  // Create a safe key extractor that ensures unique keys
+  const keyExtractor = (item: Message, index: number) => {
+    return item.id ? `${item.id}-${index}` : `message-${index}-${item.timestamp || Date.now()}`;
+  };
+
   return (
     <View style={styles.container}>
       {messages.length === 0 ? (
@@ -73,16 +102,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isTyping }) =>
           ref={flatListRef}
           data={messages}
           renderItem={renderMessage}
-          keyExtractor={(item) => item.id}
+          keyExtractor={keyExtractor}
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
+          ListFooterComponent={renderFooter}
+          onContentSizeChange={() => {
+            flatListRef.current?.scrollToEnd({ animated: true });
+          }}
+          onLayout={() => {
+            flatListRef.current?.scrollToEnd({ animated: false });
+          }}
+          removeClippedSubviews={false}
+          initialNumToRender={20}
+          maxToRenderPerBatch={10}
+          windowSize={10}
         />
-      )}
-
-      {isTyping && (
-        <View style={styles.typingContainer}>
-          <Text style={styles.typingText}>Stranger is typing…</Text>
-        </View>
       )}
     </View>
   );
@@ -91,26 +125,39 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isTyping }) =>
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1E1E1E',
-    borderRadius: 16,
-    padding: 12,
-    marginBottom: 16,
+    backgroundColor: 'rgba(30, 30, 50, 0.8)', // Dark navy with transparency to match home screen
+    borderRadius: 24,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    marginTop: 8,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: 60,
   },
   emptyText: {
-    color: '#888888',
+    color: 'rgba(255, 255, 255, 0.6)',
     fontSize: 16,
+    fontWeight: '500',
   },
   messagesContent: {
-    paddingVertical: 8,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    flexGrow: 1,
   },
   messageContainer: {
     marginVertical: 4,
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
   },
   userMessageContainer: {
     alignItems: 'flex-end',
@@ -119,57 +166,78 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   messageBubble: {
-    maxWidth: '80%',
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    elevation: 1,
+    maxWidth: '75%',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    elevation: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
-    shadowRadius: 1,
+    shadowRadius: 4,
   },
   userMessageBubble: {
-    backgroundColor: '#4A00E0',
-    borderBottomRightRadius: 4,
+    backgroundColor: '#6B46C1', // Purple to match home screen theme
+    borderBottomRightRadius: 6,
   },
   strangerMessageBubble: {
-    backgroundColor: '#2A2A2A',
-    borderBottomLeftRadius: 4,
+    backgroundColor: 'rgba(60, 60, 80, 0.9)', // Dark with transparency
+    borderBottomLeftRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   messageText: {
-    fontSize: 16,
+    fontSize: 15,
+    lineHeight: 20,
     marginBottom: 4,
   },
   userMessageText: {
     color: '#FFFFFF',
+    fontWeight: '400',
   },
   strangerMessageText: {
-    color: '#E0E0E0',
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '400',
   },
   timestamp: {
     fontSize: 10,
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: 'rgba(255, 255, 255, 0.5)',
     alignSelf: 'flex-end',
+    fontWeight: '400',
   },
   systemMessageContainer: {
     alignItems: 'center',
-    marginVertical: 8,
+    marginVertical: 16,
+    paddingHorizontal: 24,
   },
   systemMessageText: {
-    color: '#AAAAAA',
+    color: 'rgba(255, 255, 255, 0.6)',
     fontSize: 14,
     fontStyle: 'italic',
+    textAlign: 'center',
+    fontWeight: '400',
   },
-
-  // — Typing indicator styles —
   typingContainer: {
-    paddingVertical: 6,
     paddingHorizontal: 12,
+    paddingVertical: 8,
     alignItems: 'flex-start',
+  },
+  typingBubble: {
+    backgroundColor: 'rgba(60, 60, 80, 0.9)',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomLeftRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   typingText: {
     fontStyle: 'italic',
-    color: '#AAAAAA',
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 12,
+    fontWeight: '400',
+  },
+  footerSpacer: {
+    height: 12,
   },
 });
