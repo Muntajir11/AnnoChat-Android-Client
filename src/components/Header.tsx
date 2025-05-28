@@ -10,6 +10,17 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ isConnected, onlineUsers, status }) => {
   const getStatusInfo = () => {
+
+     if (status === 'Connecting...') {
+    return {
+      text: 'Connecting…',
+      icon: 'sync',
+      color: '#3B82F6',
+      pulse: true,
+    }
+  }
+
+
     if (status === "Searching for a match...") {
       return {
         text: "Searching...",

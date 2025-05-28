@@ -21,7 +21,7 @@ export const MainApp: React.FC<any> = ({ navigation }) => {
   const [onlineUsers, setOnlineUsers] = useState(0)
   const [strangerTyping, setStrangerTyping] = useState(false)
   const [authToken, setAuthToken] = useState<string | null>(null)
-  const [status, setStatus] = useState('Welcome!')
+  const [status, setStatus] = useState('Connecting...')
   const [strangerLeft, setStrangerLeft] = useState(false)
 
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -48,6 +48,11 @@ export const MainApp: React.FC<any> = ({ navigation }) => {
   useEffect(() => {
     const pres = socketOnlineRef.current
     pres.on('onlineUsers', setOnlineUsers)
+
+    pres.on('connect', () => {
+      setStatus('Ready')
+    });
+
     pres.connect()
     return () => {
       pres.disconnect()
@@ -129,9 +134,14 @@ export const MainApp: React.FC<any> = ({ navigation }) => {
     if (isConnected && roomId) leaveRoom()
     setRoomId(null)
     setMessages([])
-    setStatus('Searching for a match...')
-    setIsSearching(true)
-    socketChatRef.current?.connect()
+    
+    if (authToken) {
+      socketChatRef.current?.connect();
+      setIsSearching(true)
+      setStatus('Searching for a match...')
+  } else {
+    console.log('Auth token not available yet. Cannot connect to chat.');
+  }
   }
 
   const leaveRoom = () => {
