@@ -10,11 +10,45 @@ import { MainApp } from "./src/MainApp"
 import { SettingsScreen } from "./src/screens/SettingsScreen"
 import { AboutScreen } from "./src/screens/AboutScreen"
 import { SupportFeedbackScreen } from "./src/screens/SupportFeedBackScreen"
+import messaging from '@react-native-firebase/messaging';
+import { PermissionsAndroid, Platform } from 'react-native';
+import notifee from '@notifee/react-native';
+import { registerForegroundNotificationHandler } from './src/notifications/notificationHandler';
+
+
 
 const Stack = createStackNavigator()
 
 const App = () => {
   const [showWelcome, setShowWelcome] = useState<boolean | null>(null)
+
+async function requestUserPermission() {
+  if (Platform.OS === 'android' && Platform.Version >= 33) {
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+    );
+
+    if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+      console.log('Notification permission granted.');
+    } else {
+      console.log('Notification permission denied.');
+    }
+  }
+
+}
+
+// const getToken = async () => {
+//   const token = await messaging().getToken(); 
+//   console.log('FCM Token:', token);
+  
+// }
+
+useEffect(() => {
+  requestUserPermission();
+  // getToken();
+  registerForegroundNotificationHandler();
+}
+, []);
 
   useEffect(() => {
     const checkFirstLaunch = async () => {
