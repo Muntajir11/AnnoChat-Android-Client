@@ -11,8 +11,8 @@ import type { Message } from "../types"
 import Ionicons from "react-native-vector-icons/Ionicons"
 import analytics from "@react-native-firebase/analytics"
 
-const SERVER_URL = "http://10.0.2.2:5000"
-const SOCKET_TOKEN_URL = "http://10.0.2.2:3000/api/get-socket-token"
+const SERVER_URL = "https://muntajir.me"
+const SOCKET_TOKEN_URL = "https://annochat.social/api/get-socket-token"
 
 export const MainApp: React.FC<any> = ({ navigation }) => {
   const [isConnected, setIsConnected] = useState(false)
@@ -46,9 +46,8 @@ export const MainApp: React.FC<any> = ({ navigation }) => {
            (presenceWsRef.current.readyState === WebSocket.CONNECTING || 
             presenceWsRef.current.readyState === WebSocket.OPEN))) {
         return
-      }
-        presenceConnectingRef.current = true
-      const presenceWs = new WebSocket(`${SERVER_URL.replace('http://', 'ws://')}/presence`)
+      }      presenceConnectingRef.current = true
+      const presenceWs = new WebSocket(`${SERVER_URL.replace('http://', 'ws://').replace('https://', 'wss://')}/presence`)
       presenceWsRef.current = presenceWs
       
       presenceWs.onopen = () => {
@@ -106,7 +105,7 @@ export const MainApp: React.FC<any> = ({ navigation }) => {
     if (chatWsRef.current) {
       chatWsRef.current.close()
       chatWsRef.current = null
-    }    const chatUrl = `${SERVER_URL.replace('http://', 'ws://')}/?token=${authToken}`
+    }    const chatUrl = `${SERVER_URL.replace('http://', 'ws://').replace('https://', 'wss://')}/?token=${authToken}`
     const chatWs = new WebSocket(chatUrl)
     chatWsRef.current = chatWs
 
