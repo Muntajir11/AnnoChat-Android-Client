@@ -6,7 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import WelcomeScreens from './src/components/WelcomeScreens';
 import {NavigationContainer} from '@react-navigation/native';
 import {createStackNavigator} from '@react-navigation/stack';
-import {MainApp} from './src/MainApp';
+import {TabNavigator} from './src/components/TabNavigator';
 import {SettingsScreen} from './src/screens/SettingsScreen';
 import {AboutScreen} from './src/screens/AboutScreen';
 import {SupportFeedbackScreen} from './src/screens/SupportFeedBackScreen';
@@ -65,7 +65,7 @@ const App = () => {
     <View style={styles.container}>
       <StatusBar
         barStyle="light-content"
-        backgroundColor="#0A0A0F"
+        backgroundColor="#064E3B"
         translucent={false}
         hidden={false}
       />
@@ -76,14 +76,12 @@ const App = () => {
           <Stack.Navigator
             screenOptions={{
               headerShown: false,
-              cardStyle: {backgroundColor: '#0A0A0F'},
+              cardStyle: {backgroundColor: '#064E3B'},
             }}>
-            <Stack.Screen name="Main" component={MainApp} />
+            <Stack.Screen name="Main" component={TabNavigator} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
             <Stack.Screen name="About" component={AboutScreen} />
-            <Stack.Screen
-              name="SupportFeedback"
-              component={SupportFeedbackScreen}
+            <Stack.Screen name="SupportFeedback" component={SupportFeedbackScreen}
             />
           </Stack.Navigator>
         </NavigationContainer>
@@ -95,7 +93,7 @@ const App = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0A0F', 
+    backgroundColor: '#064E3B', 
     borderWidth: 0,
     margin: 0,
     padding: 0,

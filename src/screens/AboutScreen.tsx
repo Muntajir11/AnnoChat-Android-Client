@@ -4,25 +4,40 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
   ScrollView,
   Linking,
+  SafeAreaView,
 } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
-export const AboutScreen = ({navigation}: any) => {
+interface AboutScreenProps {
+  navigation: any;
+}
+
+export const AboutScreen: React.FC<AboutScreenProps> = ({ navigation }) => {
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>About</Text>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}>
+          <Ionicons name="arrow-back" size={24} color="#F1F5F9" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>About</Text>
+        <View style={styles.placeholder} />
+      </View>
 
-      <ScrollView
-        style={styles.contentContainer}
-        showsVerticalScrollIndicator={false}>
-        <View style={styles.logoContainer}>
-          <Image
-            source={require('../../assets/images/wow.png')}
-            style={styles.logo}
-          />
-          <Text style={styles.appName}>AnnoChat</Text>
+      <ScrollView 
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}>
+        
+        <View style={styles.logoSection}>
+          <View style={styles.iconContainer}>
+            <Ionicons name="chatbubbles" size={48} color="#10B981" />
+          </View>
+          <Text style={styles.appName}>ANNOCHAT</Text>
           <Text style={styles.version}>Version 1.0.0</Text>
         </View>
 
@@ -49,7 +64,7 @@ export const AboutScreen = ({navigation}: any) => {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Privacy Policy</Text>
+          <Text style={styles.sectionTitle}>Privacy & Security</Text>
           <Text style={styles.sectionText}>
             We take your privacy seriously. AnnoChat does not require any
             personal identification to start chatting, and we do not store or
@@ -63,92 +78,131 @@ export const AboutScreen = ({navigation}: any) => {
           <Text style={styles.sectionTitle}>Contact</Text>
           <Text style={styles.sectionText}>
             Email: annochat.social@gmail.com{'\n'}
-            <Text
-              style={styles.linkText}
-              onPress={() => Linking.openURL('https://annochat.social/')}>
-              Website: www.annochat.social
-            </Text> {'\n'}
-            {/* Follow us on social media to stay updated with the latest features
-            and improvements. */}
           </Text>
+          <TouchableOpacity 
+            onPress={() => Linking.openURL('https://annochat.social/')}
+            style={styles.linkButton}>
+            <Ionicons name="globe-outline" size={16} color="#10B981" />
+            <Text style={styles.linkText}>Visit annochat.social</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
-
-      <TouchableOpacity
-        onPress={() => navigation.goBack()}
-        style={styles.backButton}>
-        <Text style={styles.backText}>← Back</Text>
-      </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111',
-    padding: 20,
+    backgroundColor: '#0F172A',
   },
   header: {
-    fontSize: 26,
-    color: '#fff',
-    marginBottom: 20,
-    fontWeight: 'bold',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(52, 211, 153, 0.2)',
+    backgroundColor: '#1E293B',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  contentContainer: {
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#F1F5F9',
+  },
+  placeholder: {
+    width: 40,
+  },
+  content: {
     flex: 1,
   },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 30,
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingVertical: 24,
   },
-  logo: {
-    width: 120,
-    height: 120,
-    borderRadius: 20,
-    marginBottom: 15,
+  logoSection: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  iconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
   },
   appName: {
     fontSize: 24,
-    color: '#fff',
-    fontWeight: 'bold',
-    marginBottom: 5,
+    fontWeight: '700',
+    color: '#F1F5F9',
+    letterSpacing: 0.5,
+    marginBottom: 4,
   },
   version: {
-    fontSize: 16,
-    color: '#888',
-    marginBottom: 10,
+    fontSize: 14,
+    color: '#6EE7B7',
+    fontWeight: '500',
   },
   section: {
-    marginBottom: 25,
+    marginBottom: 24,
+    backgroundColor: '#1E293B',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 211, 153, 0.2)',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   sectionTitle: {
-    fontSize: 20,
-    color: '#fff',
+    fontSize: 18,
     fontWeight: '600',
-    marginBottom: 10,
+    color: '#F1F5F9',
+    marginBottom: 12,
   },
   sectionText: {
-    fontSize: 16,
-    color: '#aaa',
-    lineHeight: 24,
+    fontSize: 15,
+    color: '#CBD5E1',
+    lineHeight: 22,
   },
-  backButton: {
-    marginTop: 20,
-    padding: 12,
-    backgroundColor: '#222',
-    borderRadius: 8,
+  linkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    alignSelf: 'flex-start',
   },
-  backText: {
-    color: '#aaa',
-    fontSize: 16,
-    textAlign: 'center',
-  },
-
   linkText: {
-  fontSize: 16,
-  color: '#4aaaff',
-  marginBottom: 10,
-},
-
+    fontSize: 14,
+    color: '#10B981',
+    fontWeight: '600',
+    marginLeft: 6,
+  },
 });

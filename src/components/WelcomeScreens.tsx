@@ -19,7 +19,7 @@ import StaticBackground from "./static-background"
 const { width, height } = Dimensions.get("window")
 
 // Sexy Chat Icon
-const SexyMessageIcon = ({ size = 80, color = "#8b5cf6" }) => (
+const SexyMessageIcon = ({ size = 80, color = "#34D399" }) => (
   <View style={[styles.iconCircle, { backgroundColor: color, width: size, height: size }]}>
     <Svg width={size * 0.6} height={size * 0.6} viewBox="0 0 24 24" fill="none">
       <Path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" fill="white" />
@@ -31,7 +31,7 @@ const SexyMessageIcon = ({ size = 80, color = "#8b5cf6" }) => (
 )
 
 // Mystery Mask Icon
-const MysteryIcon = ({ size = 80, color = "#8b5cf6" }) => (
+const MysteryIcon = ({ size = 80, color = "#34D399" }) => (
   <View style={[styles.iconCircle, { backgroundColor: color, width: size, height: size }]}>
     <Svg width={size * 0.6} height={size * 0.6} viewBox="0 0 24 24" fill="none">
       <Path
@@ -44,7 +44,7 @@ const MysteryIcon = ({ size = 80, color = "#8b5cf6" }) => (
 )
 
 // Fire Icon for Hot Connections
-const FireIcon = ({ size = 80, color = "#ef4444" }) => (
+const FireIcon = ({ size = 80, color = "#10B981" }) => (
   <View style={[styles.iconCircle, { backgroundColor: color, width: size, height: size }]}>
     <Svg width={size * 0.6} height={size * 0.6} viewBox="0 0 24 24" fill="none">
       <Path
@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
   },
   background: {
     flex: 1,
-    backgroundColor: "#1a1a2e",
+    backgroundColor: "#064E3B",
   },
   gestureContainer: {
     flex: 1,
@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#8b5cf6",
+    color: "#34D399",
     textAlign: "center",
     marginBottom: 24,
     letterSpacing: 0.5,
@@ -455,12 +455,12 @@ const styles = StyleSheet.create({
     width: "85%",
   },
   solidButton: {
-    backgroundColor: "#8b5cf6",
+    backgroundColor: "#059669",
     paddingVertical: 18,
     borderRadius: 30,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#8b5cf6",
+    shadowColor: "#059669",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
     shadowRadius: 15,
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
   // Terms screen styles
   termsScreenContainer: {
     flex: 1,
-    backgroundColor: "#581c87",
+    backgroundColor: "#064E3B",
   },
   termsHeader: {
     paddingTop: 50,

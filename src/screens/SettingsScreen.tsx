@@ -1,46 +1,114 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  SafeAreaView,
+} from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
-export const SettingsScreen = ({ navigation }: any) => {
+interface SettingsScreenProps {
+  navigation: any;
+}
+
+export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Settings</Text>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}>
+          <Ionicons name="arrow-back" size={24} color="#F1F5F9" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Settings</Text>
+        <View style={styles.placeholder} />
+      </View>
 
-      <TouchableOpacity 
-        style={styles.option}
-        onPress={() => navigation.navigate('SupportFeedback')}
-      >
-        <Text style={styles.text}>Support & Feedback</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity 
-        style={styles.option}
-        onPress={() => navigation.navigate('About')}
-      >
-        <Text style={styles.text}>About</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-        <Text style={styles.backText}>← Back</Text>
-      </TouchableOpacity>
-    </View>
+      <View style={styles.content}>
+        <View style={styles.emptyState}>
+          <View style={styles.iconContainer}>
+            <Ionicons name="settings-outline" size={48} color="#10B981" />
+          </View>
+          <Text style={styles.emptyTitle}>Settings</Text>
+          <Text style={styles.emptySubtitle}>
+            Settings options will be available here soon
+          </Text>
+        </View>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#111', padding: 20 },
-  header: { fontSize: 26, color: '#fff', marginBottom: 30, fontWeight: 'bold' },
-  option: {
-    paddingVertical: 15,
-    borderBottomColor: '#333',
+  container: {
+    flex: 1,
+    backgroundColor: '#0F172A',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
+    borderBottomColor: 'rgba(52, 211, 153, 0.2)',
+    backgroundColor: '#1E293B',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  text: { fontSize: 18, color: '#ccc' },
   backButton: {
-    marginTop: 40,
-    padding: 10,
-    backgroundColor: '#222',
-    borderRadius: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
   },
-  backText: { color: '#aaa', fontSize: 16, textAlign: 'center' },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#F1F5F9',
+  },
+  placeholder: {
+    width: 40,
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  emptyState: {
+    alignItems: 'center',
+  },
+  iconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+    borderWidth: 2,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#F1F5F9',
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    color: '#CBD5E1',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
 });
