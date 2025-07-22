@@ -1,8 +1,6 @@
-"use client"
-
 import type React from "react"
 import { useState } from "react"
-import { View, TextInput, TouchableOpacity, StyleSheet, Platform, Text } from "react-native"
+import { View, TextInput, TouchableOpacity, StyleSheet, Text } from "react-native"
 import Icon from "react-native-vector-icons/Ionicons"
 
 interface MessageInputProps {
@@ -29,6 +27,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, onDis
 
   return (
     <View style={styles.container}>
+      
       <TouchableOpacity style={styles.disconnectButton} onPress={onDisconnect} activeOpacity={0.7}>
         <Icon name="log-out-outline" size={16} color="#F1F5F9" />
         <Text style={styles.disconnectText}>End</Text>
@@ -41,11 +40,19 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, onDis
           placeholderTextColor="rgba(203, 213, 225, 0.5)"
           value={message}
           onChangeText={handleChangeText}
-          multiline
+          multiline={true}
           maxLength={500}
           returnKeyType="send"
           onSubmitEditing={handleSend}
-          blurOnSubmit={true}
+          blurOnSubmit={false}
+          textAlignVertical="top"
+          underlineColorAndroid="transparent"
+          enablesReturnKeyAutomatically={true}
+          autoCapitalize="sentences"
+          autoCorrect={true}
+          spellCheck={true}
+          scrollEnabled={true}
+          keyboardAppearance="dark"
         />
       </View>
 
@@ -64,18 +71,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, onDis
 const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-end",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingBottom: Platform.OS === "ios" ? 16 : 12,
+    paddingTop: 12,
+    paddingBottom: 12,
     backgroundColor: "#0F172A",
     borderTopWidth: 1,
     borderTopColor: "rgba(52, 211, 153, 0.2)",
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
   disconnectButton: {
     flexDirection: "row",
@@ -88,11 +90,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#475569",
     borderWidth: 1,
     borderColor: "rgba(203, 213, 225, 0.3)",
-    elevation: 2,
-    shadowColor: "#475569",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
   },
   disconnectText: {
     color: "#F1F5F9",
@@ -105,9 +102,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#334155",
     borderRadius: 24,
     paddingHorizontal: 18,
-    paddingVertical: Platform.OS === "ios" ? 14 : 12,
+    paddingVertical: 12,
     marginRight: 12,
     minHeight: 48,
+    maxHeight: 120,
     justifyContent: "center",
     borderWidth: 1,
     borderColor: "rgba(52, 211, 153, 0.2)",
@@ -121,10 +119,13 @@ const styles = StyleSheet.create({
     color: "#F1F5F9",
     fontSize: 16,
     lineHeight: 20,
-    maxHeight: 120,
+    minHeight: 20,
+    maxHeight: 96,
     padding: 0,
     margin: 0,
     fontWeight: "400",
+    textAlignVertical: "top",
+    includeFontPadding: false,
   },
   sendButton: {
     backgroundColor: "#10B981",
@@ -135,11 +136,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: "rgba(52, 211, 153, 0.4)",
-    elevation: 4,
-    shadowColor: "#10B981",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
   },
   sendButtonDisabled: {
     backgroundColor: "#475569",

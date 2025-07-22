@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Linking, ActivityIndicator } 
 import { ChatWindow } from '../components/ChatWindow';
 import { MessageInput } from '../components/MessageInput';
 import { Header } from '../components/Header';
+import { useChatContext } from '../contexts/ChatContext';
 import type { Message } from '../../types';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import analytics from '@react-native-firebase/analytics';
@@ -17,20 +18,33 @@ interface TextChatScreenProps {
 }
 
 export const TextChatScreen: React.FC<TextChatScreenProps> = ({ navigation, onMenuPress, onChatStatusChange }) => {
-  const [isConnected, setIsConnected] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [roomId, setRoomId] = useState<string | null>(null);
-  const [onlineUsers, setOnlineUsers] = useState(0);
-  const [strangerTyping, setStrangerTyping] = useState(false);
   const [authToken, setAuthToken] = useState<string | null>(null);
-  const [status, setStatus] = useState('Connecting...');
   const [strangerLeft, setStrangerLeft] = useState(false);
   const [isButtonDisabled, setIsButtonDisabled] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const presenceWsRef = useRef<WebSocket | null>(null);
-  const chatWsRef = useRef<WebSocket | null>(null);
   const presenceConnectingRef = useRef(false);
+
+  // Use ChatContext instead of local state
+  const {
+    messages,
+    setMessages,
+    isTyping: strangerTyping,
+    setIsTyping: setStrangerTyping,
+    onlineUsers,
+    setOnlineUsers,
+    status,
+    setStatus,
+    roomId,
+    setRoomId,
+    chatWsRef,
+    setOnSendMessage,
+    setOnDisconnect,
+    setOnChangeText,
+  } = useChatContext();
+
+  const [isConnected, setIsConnected] = useState(false);
 
   const fetchToken = async () => {
     try {
@@ -116,10 +130,76 @@ export const TextChatScreen: React.FC<TextChatScreenProps> = ({ navigation, onMe
     };
   }, [authToken]);
 
-  // Call onChatStatusChange whenever isConnected changes
+  // Update context with function handlers
   useEffect(() => {
-    onChatStatusChange?.(isConnected);
-  }, [isConnected, onChatStatusChange]);
+    setOnSendMessage(() => (text: string) => {
+      if (!text.trim() || !roomId || strangerLeft) return;
+      setMessages(m => [
+        ...m,
+        {
+          id: `you-${Date.now()}`,
+          text,
+          sender: 'user',
+          timestamp: new Date(),
+        },
+      ]);
+
+      const chat = chatWsRef.current;
+      if (chat && chat.readyState === WebSocket.OPEN) {
+        chat.send(
+          JSON.stringify({ event: 'chat message', data: { roomId, msg: text } })
+        );
+        chat.send(
+          JSON.stringify({
+            event: 'typing',
+            data: { roomId, isTyping: false },
+          })
+        );
+      }
+
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+    });
+    
+    setOnDisconnect(() => () => {
+      leaveRoom();
+      navigation.goBack();
+    });
+    
+    setOnChangeText(() => (txt: string) => {
+      if (!roomId) return;
+
+      const chat = chatWsRef.current;
+      if (chat && chat.readyState === WebSocket.OPEN) {
+        chat.send(
+          JSON.stringify({ event: 'typing', data: { roomId, isTyping: true } })
+        );
+      }
+
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
+      typingTimeoutRef.current = setTimeout(() => {
+        if (chat && chat.readyState === WebSocket.OPEN) {
+          chat.send(
+            JSON.stringify({
+              event: 'typing',
+              data: { roomId, isTyping: false },
+            })
+          );
+        }
+        typingTimeoutRef.current = null;
+      }, 1500);
+    });
+  }, [roomId, strangerLeft, setMessages, setOnSendMessage, setOnDisconnect, setOnChangeText]);
+
+  // Navigate to separate Chat screen when connected
+  useEffect(() => {
+    if (isConnected) {
+      navigation.navigate('Chat');
+    }
+  }, [isConnected]);
 
   const connectChat = () => {
     if (chatWsRef.current) {
@@ -281,146 +361,73 @@ export const TextChatScreen: React.FC<TextChatScreenProps> = ({ navigation, onMe
     setStatus('Ready');
   };
 
-  const handleSendMessage = (text: string) => {
-    if (!text.trim() || !roomId || strangerLeft) return;
-    setMessages(m => [
-      ...m,
-      {
-        id: `you-${Date.now()}`,
-        text,
-        sender: 'user',
-        timestamp: new Date(),
-      },
-    ]);
-
-    const chat = chatWsRef.current;
-    if (chat && chat.readyState === WebSocket.OPEN) {
-      chat.send(
-        JSON.stringify({ event: 'chat message', data: { roomId, msg: text } })
-      );
-      chat.send(
-        JSON.stringify({
-          event: 'typing',
-          data: { roomId, isTyping: false },
-        })
-      );
-    }
-
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
-    }
-  };
-
-  const handleInputChange = (txt: string) => {
-    if (!roomId) return;
-
-    const chat = chatWsRef.current;
-    if (chat && chat.readyState === WebSocket.OPEN) {
-      chat.send(
-        JSON.stringify({ event: 'typing', data: { roomId, isTyping: true } })
-      );
-    }
-
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-
-    typingTimeoutRef.current = setTimeout(() => {
-      if (chat && chat.readyState === WebSocket.OPEN) {
-        chat.send(
-          JSON.stringify({
-            event: 'typing',
-            data: { roomId, isTyping: false },
-          })
-        );
-      }
-      typingTimeoutRef.current = null;
-    }, 1500);
-  };
-
   const handleTouch = (e: any) => {};
 
   return (
     <View style={styles.container}>
-      {!isConnected ? (
-        <View style={styles.searchContainer}>
-          <Header
-            isConnected={isConnected}
-            onlineUsers={onlineUsers}
-            status={status}
-            onMenuPress={onMenuPress}
-          />
-          
-          <View style={styles.searchContent}>
-              <View style={styles.heroSection}>
-              {isSearching ? (
-                <View style={styles.searchingContainer}>
-                  <View style={styles.searchingIcon}>
-                    <ActivityIndicator size="large" color="#10B981" />
-                    <View style={styles.searchingDots}>
-                      <View style={styles.searchDot} />
-                      <View style={styles.searchDot} />
-                      <View style={styles.searchDot} />
-                    </View>
-                  </View>
-                  <Text style={styles.searchingTitle}>Discovering Someone New</Text>
-                  <Text style={styles.searchingSubtitle}>Connecting you with an interesting stranger...</Text>
-                  
-                  <View style={styles.statusIndicator}>
-                    <View style={[styles.statusDot, { backgroundColor: '#F59E0B' }]} />
-                    <Text style={styles.statusText}>{status}</Text>
-                    <Text style={styles.onlineCount}>{onlineUsers} online</Text>
+      <View style={styles.searchContainer}>
+        <Header
+          isConnected={isConnected}
+          onlineUsers={onlineUsers}
+          status={status}
+          onMenuPress={onMenuPress}
+        />
+        
+        <View style={styles.searchContent}>
+            <View style={styles.heroSection}>
+            {isSearching ? (
+              <View style={styles.searchingContainer}>
+                <View style={styles.searchingIcon}>
+                  <ActivityIndicator size="large" color="#10B981" />
+                  <View style={styles.searchingDots}>
+                    <View style={styles.searchDot} />
+                    <View style={styles.searchDot} />
+                    <View style={styles.searchDot} />
                   </View>
                 </View>
-              ) : (
-                <View style={styles.welcomeContainer}>
-                  <View style={styles.heroIcon}>
-                    <Ionicons name="globe-outline" size={50} color="#10B981" />
-                  </View>
-                  <Text style={styles.heroTitle}>Connect Worldwide</Text>
-                  <Text style={styles.heroSubtitle}>Meet strangers, share stories, discover new perspectives from around the globe</Text>
-                  
-                  <View style={styles.statusIndicator}>
-                    <View style={[styles.statusDot, { backgroundColor: status === 'Ready' ? '#10B981' : '#F59E0B' }]} />
-                    <Text style={styles.statusText}>{status}</Text>
-                    <Text style={styles.onlineCount}>{onlineUsers} online</Text>
-                  </View>
+                <Text style={styles.searchingTitle}>Discovering Someone New</Text>
+                <Text style={styles.searchingSubtitle}>Connecting you with an interesting stranger...</Text>
+                
+                <View style={styles.statusIndicator}>
+                  <View style={[styles.statusDot, { backgroundColor: '#F59E0B' }]} />
+                  <Text style={styles.statusText}>{status}</Text>
+                  <Text style={styles.onlineCount}>{onlineUsers} online</Text>
                 </View>
-              )}
-            </View>
-            
-            <TouchableOpacity
-              style={[
-                styles.searchButton,
-                isSearching && !isButtonDisabled && styles.searchingButton,
-                (isButtonDisabled || (status !== 'Ready' && !isSearching)) && styles.disabledButton,
-              ]}
-              onPress={isSearching ? handleCancelSearch : handleFindChat}
-              disabled={isButtonDisabled || (status !== 'Ready' && !isSearching)}>
-              <Text style={[
-                styles.searchButtonText,
-                (isButtonDisabled || (status !== 'Ready' && !isSearching)) && styles.disabledButtonText
-              ]}>
-                {isSearching ? 'Cancel Search' : status !== 'Ready' ? 'Connecting...' : 'Start Chatting'}
-              </Text>
-            </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.welcomeContainer}>
+                <View style={styles.heroIcon}>
+                  <Ionicons name="globe-outline" size={50} color="#10B981" />
+                </View>
+                <Text style={styles.heroTitle}>Connect Worldwide</Text>
+                <Text style={styles.heroSubtitle}>Meet strangers, share stories, discover new perspectives from around the globe</Text>
+                
+                <View style={styles.statusIndicator}>
+                  <View style={[styles.statusDot, { backgroundColor: status === 'Ready' ? '#10B981' : '#F59E0B' }]} />
+                  <Text style={styles.statusText}>{status}</Text>
+                  <Text style={styles.onlineCount}>{onlineUsers} online</Text>
+                </View>
+              </View>
+            )}
           </View>
+          
+          <TouchableOpacity
+            style={[
+              styles.searchButton,
+              isSearching && !isButtonDisabled && styles.searchingButton,
+              (isButtonDisabled || (status !== 'Ready' && !isSearching)) && styles.disabledButton,
+            ]}
+            onPress={isSearching ? handleCancelSearch : handleFindChat}
+            disabled={isButtonDisabled || (status !== 'Ready' && !isSearching)}>
+            <Text style={[
+              styles.searchButtonText,
+              (isButtonDisabled || (status !== 'Ready' && !isSearching)) && styles.disabledButtonText
+            ]}>
+              {isSearching ? 'Cancel Search' : status !== 'Ready' ? 'Connecting...' : 'Start Chatting'}
+            </Text>
+          </TouchableOpacity>
         </View>
-      ) : (
-        <View style={styles.chatContainer}>
-          <Header
-            isConnected={isConnected}
-            onlineUsers={onlineUsers}
-            status={status}
-            onMenuPress={onMenuPress}
-          />
-          <ChatWindow messages={messages} isTyping={strangerTyping} />
-          <MessageInput
-            onSendMessage={handleSendMessage}
-            onDisconnect={leaveRoom}
-            onChangeText={handleInputChange}
-          />
-        </View>
-      )}
+      </View>
     </View>
   );
 };
@@ -580,9 +587,5 @@ const styles = StyleSheet.create({
   },
   disabledButtonText: {
     opacity: 0.7,
-  },
-  chatContainer: {
-    flex: 1,
-    backgroundColor: '#0F172A',
   },
 });

@@ -1,5 +1,3 @@
-"use client"
-
 import React from "react"
 import { View, Text, StyleSheet, FlatList } from "react-native"
 import type { Message } from "../../types"
@@ -15,17 +13,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isTyping }) =>
   // 1) New message → scroll
   React.useEffect(() => {
     if (messages.length > 0) {
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true })
-      }, 50)
+      const timer = setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: false })
+      }, 100)
+      return () => clearTimeout(timer)
     }
   }, [messages.length])
 
   // 2) Typing indicator → scroll
   React.useEffect(() => {
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true })
-    }, 50)
+    if (isTyping) {
+      const timer = setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true })
+      }, 150)
+      return () => clearTimeout(timer)
+    }
   }, [isTyping])
 
   const renderMessage = ({ item }: { item: Message }) => {
@@ -105,6 +107,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isTyping }) =>
           initialNumToRender={20}
           maxToRenderPerBatch={10}
           windowSize={10}
+          keyboardShouldPersistTaps="handled"
         />
       )}
     </View>
@@ -114,7 +117,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isTyping }) =>
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#1A2332",
+    backgroundColor: "#0F172A",
     elevation: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
@@ -137,7 +140,7 @@ const styles = StyleSheet.create({
   messagesContent: {
     paddingHorizontal: 8,
     paddingTop: 20,
-    paddingBottom: 16,
+    paddingBottom: 8,
     flexGrow: 1,
   },
   messageContainer: {
@@ -237,6 +240,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   footerSpacer: {
-    height: 12,
+    height: 4,
   },
 })

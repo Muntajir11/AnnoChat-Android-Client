@@ -10,8 +10,10 @@ import {
   Linking,
   Clipboard,
   SafeAreaView,
+  StatusBar,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface SupportFeedbackScreenProps {
   navigation: any;
@@ -20,6 +22,7 @@ interface SupportFeedbackScreenProps {
 export const SupportFeedbackScreen: React.FC<SupportFeedbackScreenProps> = ({ navigation }) => {
   const [name, setName] = useState('');
   const [message, setMessage] = useState('');
+  const insets = useSafeAreaInsets();
   
   const handleSubmit = () => {
     if (!name.trim() || !message.trim()) {
@@ -57,8 +60,9 @@ export const SupportFeedbackScreen: React.FC<SupportFeedbackScreenProps> = ({ na
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => navigation.goBack()}
@@ -132,7 +136,7 @@ export const SupportFeedbackScreen: React.FC<SupportFeedbackScreenProps> = ({ na
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -142,11 +146,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#0F172A',
   },
   header: {
-    height: 60,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: '#1E293B',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(52, 211, 153, 0.2)',
@@ -157,9 +161,9 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
@@ -173,7 +177,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   placeholder: {
-    width: 44,
+    width: 40,
   },
   content: {
     flex: 1,

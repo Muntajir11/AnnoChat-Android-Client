@@ -1,6 +1,7 @@
 import type React from "react"
-import { View, Text, StyleSheet, TouchableOpacity, Linking } from "react-native"
+import { View, Text, StyleSheet, TouchableOpacity, Linking, Platform } from "react-native"
 import Ionicons from "react-native-vector-icons/Ionicons"
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface HeaderProps {
   isConnected: boolean
@@ -10,6 +11,8 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ isConnected, onlineUsers, status, onMenuPress }) => {
+  const insets = useSafeAreaInsets();
+  
   const openWebsite = () => {
     Linking.openURL('https://annochat.social').catch(err => {
       console.error('Failed to open URL:', err);
@@ -55,7 +58,7 @@ export const Header: React.FC<HeaderProps> = ({ isConnected, onlineUsers, status
   const statusInfo = getStatusInfo()
 
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, { paddingTop: Math.max(insets.top, 8) }]}>
       <View style={styles.headerContent}>
         {/* Left side - App branding */}
         <View style={styles.leftSection}>
@@ -91,10 +94,9 @@ export const Header: React.FC<HeaderProps> = ({ isConnected, onlineUsers, status
 
 const styles = StyleSheet.create({
   header: {
-    paddingTop: 8,
     paddingBottom: 8,
     paddingHorizontal: 16,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0A0A0F',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(52, 211, 153, 0.2)',
     elevation: 4,

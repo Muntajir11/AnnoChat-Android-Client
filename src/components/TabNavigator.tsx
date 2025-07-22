@@ -5,11 +5,13 @@ import {
   StyleSheet,
   TouchableOpacity,
   Dimensions,
+  Platform,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { TextChatScreen } from '../screens';
 import { VideoChatScreen } from '../screens';
 import { SideDrawer } from './SideDrawer';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface TabNavigatorProps {
   navigation: any;
@@ -21,6 +23,7 @@ export const TabNavigator: React.FC<TabNavigatorProps> = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState<TabType>('text');
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
   const [hideTabBar, setHideTabBar] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const toggleDrawer = () => {
     setIsDrawerVisible(!isDrawerVisible);
@@ -33,7 +36,7 @@ export const TabNavigator: React.FC<TabNavigatorProps> = ({ navigation }) => {
 
 
   const renderTabBar = () => (
-    <View style={styles.tabBar}>
+    <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
       <TouchableOpacity
         style={[
           styles.tab,
@@ -124,11 +127,6 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(52, 211, 153, 0.2)',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    elevation: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
   },
   tab: {
     flex: 1,
@@ -145,12 +143,8 @@ const styles = StyleSheet.create({
   },
   activeTab: {
     backgroundColor: '#334155',
-    borderColor: 'rgba(52, 211, 153, 0.4)',
-    elevation: 4,
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    borderColor: '#10B981',
+    borderWidth: 2,
   },
   tabText: {
     fontSize: 13,
