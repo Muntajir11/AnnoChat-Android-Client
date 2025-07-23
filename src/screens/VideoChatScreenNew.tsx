@@ -212,6 +212,91 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       }
     }, [status, isInCall, isSearching])
 
+    // Background camera preview setup
+    useEffect(() => {
+      console.log("Background camera useEffect triggered:", {
+        isCameraOn,
+        isInCall,
+        isSearching,
+        hasStream: !!localStreamRef.current,
+        cameraFacing
+      })
+      
+      const setupBackgroundCamera = async () => {
+        try {
+          // Only set up background camera if:
+          // 1. Camera is supposed to be on
+          // 2. Not currently in a call or searching
+          // 3. No existing stream
+          if (isCameraOn && !isInCall && !isSearching && !localStreamRef.current) {
+            console.log("Setting up background camera preview...")
+            const hasPermissions = await requestCameraAndMicrophonePermissions()
+            if (!hasPermissions) return
+
+            const stream = await mediaDevices.getUserMedia({
+              video: {
+                width: 1280,
+                height: 720,
+                frameRate: 30,
+                facingMode: cameraFacing,
+              },
+              audio: false, // Only video for background preview
+            })
+
+            localStreamRef.current = stream
+            setVideoKey(prev => prev + 1) // Force RTCView re-render
+            console.log("Background camera preview created")
+          }
+          // Clean up stream if camera is turned off and not in call/searching
+          else if (!isCameraOn && !isInCall && !isSearching && localStreamRef.current) {
+            console.log("Cleaning up background camera preview...")
+            localStreamRef.current.getTracks().forEach((track) => track.stop())
+            localStreamRef.current = null
+            setVideoKey(prev => prev + 1) // Force RTCView to disappear
+          }
+        } catch (error) {
+          console.error("Error setting up background camera:", error)
+        }
+      }
+
+      setupBackgroundCamera()
+    }, [isCameraOn, isInCall, isSearching, cameraFacing])
+
+    // Additional effect to ensure camera preview is restored after tab switches
+    useEffect(() => {
+      // Small delay to ensure tab switching is complete
+      const timer = setTimeout(() => {
+        if (isCameraOn && !isInCall && !isSearching && !localStreamRef.current) {
+          console.log("Restoring camera preview after tab switch...")
+          const restoreCamera = async () => {
+            try {
+              const hasPermissions = await requestCameraAndMicrophonePermissions()
+              if (!hasPermissions) return
+
+              const stream = await mediaDevices.getUserMedia({
+                video: {
+                  width: 1280,
+                  height: 720,
+                  frameRate: 30,
+                  facingMode: cameraFacing,
+                },
+                audio: false,
+              })
+
+              localStreamRef.current = stream
+              setVideoKey(prev => prev + 1) // Force RTCView re-render
+              console.log("Camera preview restored after tab switch")
+            } catch (error) {
+              console.error("Error restoring camera preview:", error)
+            }
+          }
+          restoreCamera()
+        }
+      }, 300)
+
+      return () => clearTimeout(timer)
+    }, [shouldAutoConnect]) // This will trigger when tab is switched
+
     // Searching animation
     useEffect(() => {
       if (isSearching) {
@@ -601,7 +686,9 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
         if (localStreamRef.current) {
           try {
             localStreamRef.current.getTracks().forEach((track) => {
-              peerConnection.addTrack(track, localStreamRef.current!)
+              if (localStreamRef.current) {
+                peerConnection.addTrack(track, localStreamRef.current)
+              }
             })
             console.log("Using addTrack method")
           } catch (error) {
@@ -881,10 +968,53 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       setError("")
 
       try {
-        if (localStreamRef.current) {
-          console.log("Cleaning up existing stream before creating new one")
-          localStreamRef.current.getTracks().forEach((track) => track.stop())
-          localStreamRef.current = null
+        // Check if we already have a video stream from background preview
+        const hasExistingVideoStream = localStreamRef.current && 
+          localStreamRef.current.getVideoTracks().length > 0 &&
+          localStreamRef.current.getVideoTracks()[0].readyState !== "ended"
+
+        if (hasExistingVideoStream) {
+          console.log("Reusing existing background camera stream, just adding audio...")
+          
+          // We have a good video stream, just need to add audio
+          try {
+            const audioStream = await mediaDevices.getUserMedia({
+              audio: true,
+              video: false,
+            })
+            
+            const audioTrack = audioStream.getAudioTracks()[0]
+            if (audioTrack && localStreamRef.current) {
+              audioTrack.enabled = isMicOn
+              localStreamRef.current.addTrack(audioTrack)
+              console.log("Added audio track to existing video stream")
+            }
+          } catch (audioError) {
+            console.warn("Failed to add audio track, continuing with video only:", audioError)
+          }
+        } else {
+          console.log("No existing video stream, creating new media stream...")
+          
+          // Clean up any existing stream
+          if (localStreamRef.current) {
+            console.log("Cleaning up existing stream before creating new one")
+            localStreamRef.current.getTracks().forEach((track) => track.stop())
+            localStreamRef.current = null
+          }
+
+          console.log("Creating media stream with camera facing:", cameraFacing)
+          const stream = await mediaDevices.getUserMedia({
+            video: {
+              width: 1280,
+              height: 720,
+              frameRate: 30,
+              facingMode: cameraFacing,
+            },
+            audio: true,
+          })
+
+          localStreamRef.current = stream
+          console.log("Media stream created successfully")
         }
 
         const hasPermissions = await requestCameraAndMicrophonePermissions()
@@ -901,22 +1031,9 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
           console.warn("Audio setup failed, continuing with default settings")
         }
 
-        console.log("Creating media stream with camera facing:", cameraFacing)
-        const stream = await mediaDevices.getUserMedia({
-          video: {
-            width: 1280,
-            height: 720,
-            frameRate: 30,
-            facingMode: cameraFacing,
-          },
-          audio: true,
-        })
-
-        localStreamRef.current = stream
-        console.log("Media stream created successfully")
-
-        const videoTrack = stream.getVideoTracks()[0]
-        const audioTrack = stream.getAudioTracks()[0]
+        // Ensure tracks are enabled according to current settings
+        const videoTrack = localStreamRef.current?.getVideoTracks()[0]
+        const audioTrack = localStreamRef.current?.getAudioTracks()[0]
 
         if (videoTrack) {
           videoTrack.enabled = isCameraOn
@@ -1077,13 +1194,22 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
           }
         }
       } else if (localStreamRef.current) {
-        console.log("Toggling camera during search/preparation")
+        console.log("Toggling camera during search/preparation or background preview")
         const videoTrack = localStreamRef.current.getVideoTracks()[0]
 
         if (isCameraOn) {
-          console.log("Disabling video track during search")
-          if (videoTrack) {
-            videoTrack.enabled = false
+          console.log("Turning off camera - cleaning up stream")
+          // For background preview, completely stop and clean up the stream
+          if (!isInCall && !isSearching) {
+            localStreamRef.current.getTracks().forEach((track) => track.stop())
+            localStreamRef.current = null
+            setVideoKey(prev => prev + 1) // Force RTCView to disappear
+            console.log("Background camera stream cleaned up")
+          } else {
+            // During search, just disable the track
+            if (videoTrack) {
+              videoTrack.enabled = false
+            }
           }
           setIsCameraOn(false)
         } else {
@@ -1092,7 +1218,7 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
             videoTrack.enabled = true
             setIsCameraOn(true)
           } else {
-            console.log("Creating new video track during search")
+            console.log("Creating new video track")
             try {
               if (videoTrack) {
                 videoTrack.stop()
@@ -1114,17 +1240,51 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
                 newVideoTrack.enabled = true
                 localStreamRef.current.addTrack(newVideoTrack)
                 setIsCameraOn(true)
-                console.log("Added new video track during search")
+                console.log("Added new video track")
               }
             } catch (error) {
-              console.error("Error creating video track during search:", error)
+              console.error("Error creating video track:", error)
               setError("Unable to turn on camera. Please try again.")
             }
           }
         }
       } else {
-        console.log("No stream available, just toggling state")
-        setIsCameraOn(!isCameraOn)
+        console.log("No stream available for camera toggle")
+        console.log("Current state - isCameraOn:", isCameraOn, "isInCall:", isInCall, "isSearching:", isSearching)
+        
+        const newCameraState = !isCameraOn
+        setIsCameraOn(newCameraState)
+        console.log("Camera state toggled to:", newCameraState)
+        
+        // If turning camera on and not in call/searching, manually create background preview
+        if (newCameraState && !isInCall && !isSearching) {
+          console.log("Manually creating background camera stream...")
+          try {
+            const hasPermissions = await requestCameraAndMicrophonePermissions()
+            if (!hasPermissions) {
+              setIsCameraOn(false) // Revert state on permission failure
+              return
+            }
+
+            const stream = await mediaDevices.getUserMedia({
+              video: {
+                width: 1280,
+                height: 720,
+                frameRate: 30,
+                facingMode: cameraFacing,
+              },
+              audio: false,
+            })
+
+            localStreamRef.current = stream
+            setVideoKey(prev => prev + 1) // Force RTCView re-render
+            console.log("Background camera stream created manually")
+          } catch (error) {
+            console.error("Error creating background camera stream manually:", error)
+            setError("Unable to access camera. Please try again.")
+            setIsCameraOn(false) // Revert state on error
+          }
+        }
       }
     }
 
@@ -1132,11 +1292,19 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       if (localStreamRef.current) {
         const audioTrack = localStreamRef.current.getAudioTracks()[0]
         if (audioTrack) {
+          // Audio track exists, toggle it
           audioTrack.enabled = !audioTrack.enabled
           setIsMicOn(audioTrack.enabled)
+          console.log("Audio track toggled:", audioTrack.enabled)
+        } else {
+          // No audio track (background camera stream), just update state
+          setIsMicOn(!isMicOn)
+          console.log("No audio track available, just updating state:", !isMicOn)
         }
       } else {
+        // No stream at all, just update state
         setIsMicOn(!isMicOn)
+        console.log("No stream available, updating mic state:", !isMicOn)
       }
     }
 
@@ -1381,14 +1549,29 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
 
     // Render the main interface when not in call
     const renderMainInterface = () => (
-      <Animated.View style={[styles.mainContent, { opacity: fadeAnim }]}>
-        {/* Status Chip - Top Right */}
-        <View style={styles.statusContainer}>
-          <View style={styles.statusChip}>
-            <View style={[styles.statusDot, { backgroundColor: status === "Ready" ? "#FF6B6B" : "#FFD93D" }]} />
-            <Text style={styles.statusChipText}>{onlineUsers} online</Text>
-          </View>
-        </View>
+      <View style={styles.mainInterfaceContainer}>
+        {/* Background Camera Feed */}
+        {isCameraOn && localStreamRef.current && (
+          <RTCView
+            key={`background-camera-${videoKey}`}
+            style={styles.backgroundCameraView}
+            streamURL={localStreamRef.current.toURL()}
+            objectFit="cover"
+            mirror={true}
+          />
+        )}
+        
+        {/* Dark overlay to ensure UI visibility */}
+        <View style={styles.backgroundOverlay} />
+
+        <Animated.View style={[styles.mainContent, { opacity: fadeAnim }]}>
+          {/* Status Chip - Top Right */}
+          {/* <View style={styles.statusContainer}>
+            <View style={styles.statusChip}>
+              <View style={[styles.statusDot, { backgroundColor: status === "Ready" ? "#FF6B6B" : "#FFD93D" }]} />
+              <Text style={styles.statusChipText}>{onlineUsers} online</Text>
+            </View>
+          </View> */}
 
         {/* Main Video Interface */}
         <View style={styles.videoInterface}>
@@ -1511,7 +1694,8 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
-      </Animated.View>
+        </Animated.View>
+      </View>
     )
 
     // Render video call interface when in call
@@ -1739,9 +1923,31 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#0A0A0F",
   },
+  mainInterfaceContainer: {
+    flex: 1,
+    position: "relative",
+  },
+  backgroundCameraView: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 0,
+  },
+  backgroundOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(10, 10, 15, 0.75)",
+    zIndex: 1,
+  },
   mainContent: {
     flex: 1,
     paddingHorizontal: 20,
+    zIndex: 2,
   },
   statusContainer: {
     alignItems: "flex-end",
