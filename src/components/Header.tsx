@@ -1,7 +1,7 @@
 import type React from "react"
-import { View, Text, StyleSheet, TouchableOpacity, Linking, Platform } from "react-native"
+import { View, Text, StyleSheet, TouchableOpacity, Linking } from "react-native"
 import Ionicons from "react-native-vector-icons/Ionicons"
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 interface HeaderProps {
   isConnected: boolean
@@ -11,82 +11,39 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ isConnected, onlineUsers, status, onMenuPress }) => {
-  const insets = useSafeAreaInsets();
-  
+  const insets = useSafeAreaInsets()
+
   const openWebsite = () => {
-    Linking.openURL('https://annochat.social').catch(err => {
-      console.error('Failed to open URL:', err);
-    });
-  };
-
-  const getStatusInfo = () => {
-
-  if (status === 'Connecting...') {
-    return {
-      text: 'Connecting…',
-      icon: 'sync',
-      color: '#6EE7B7',
-      pulse: true,
-    }
+    Linking.openURL("https://annochat.social").catch((err) => {
+      console.error("Failed to open URL:", err)
+    })
   }
-
-
-    if (status === "Searching for a match...") {
-      return {
-        text: "Searching...",
-        icon: "search",
-        color: "#6EE7B7",
-        pulse: true,
-      }
-    }
-    if (isConnected) {
-      return {
-        text: "Connected",
-        icon: "checkmark-circle",
-        color: "#10B981",
-        pulse: false,
-      }
-    }
-    return {
-      text: "Ready",
-      icon: "radio-button-off",
-      color: "#34D399",
-      pulse: false,
-    }
-  }
-
-  const statusInfo = getStatusInfo()
 
   return (
-    <View style={[styles.header, { paddingTop: Math.max(insets.top, 8) }]}>
+    <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
       <View style={styles.headerContent}>
-        {/* Left side - App branding */}
-        <View style={styles.leftSection}>
-          <TouchableOpacity 
-            style={styles.iconContainer}
-            onPress={openWebsite}
-            activeOpacity={0.7}>
-            <Ionicons name="chatbubbles" size={20} color="#10B981" />
-          </TouchableOpacity>
-          <View style={styles.textContainer}>
-            <Text style={styles.appTitle}>ANNOCHAT</Text>
-            <Text style={styles.appSubtitle}>Anonymous Chat</Text>
+        <TouchableOpacity style={styles.brandContainer} onPress={openWebsite} activeOpacity={0.8}>
+          <View style={styles.logoWrapper}>
+            <View style={styles.logo}>
+              <Ionicons name="chatbubbles" size={24} color="#FFFFFF" />
+            </View>
+            <View style={styles.logoGlow} />
           </View>
-        </View>
+          <View style={styles.brandText}>
+            <Text style={styles.appName}>ANNOCHAT</Text>
+            <Text style={styles.tagline}>Connect • Discover • Chat</Text>
+          </View>
+        </TouchableOpacity>
 
-        {/* Right side - Menu only */}
-        <View style={styles.rightSection}>
-          {onMenuPress && (
-            <TouchableOpacity 
-              style={styles.menuButton} 
-              onPress={onMenuPress}
-              activeOpacity={0.7}>
-              <View style={styles.dot} />
-              <View style={styles.dot} />
-              <View style={styles.dot} />
-            </TouchableOpacity>
-          )}
-        </View>
+        {onMenuPress && (
+          <TouchableOpacity style={styles.menuButton} onPress={onMenuPress} activeOpacity={0.8}>
+            <View style={styles.menuIcon}>
+              <View style={styles.menuDot} />
+              <View style={styles.menuDot} />
+              <View style={styles.menuDot} />
+            </View>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   )
@@ -94,111 +51,80 @@ export const Header: React.FC<HeaderProps> = ({ isConnected, onlineUsers, status
 
 const styles = StyleSheet.create({
   header: {
-    paddingBottom: 8,
-    paddingHorizontal: 16,
-    backgroundColor: '#0A0A0F',
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    backgroundColor: "rgba(10, 10, 15, 0.95)",
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(52, 211, 153, 0.2)',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderBottomColor: "rgba(139, 92, 246, 0.1)",
   },
-
   headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    minHeight: 44,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    minHeight: 50,
   },
-
-  leftSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  brandContainer: {
+    flexDirection: "row",
+    alignItems: "center",
     flex: 1,
   },
-
-  iconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'transparent',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(52, 211, 153, 0.4)',
+  logoWrapper: {
+    position: "relative",
+    marginRight: 16,
   },
-
-  textContainer: {
-    alignItems: 'flex-start',
+  logo: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#8B5CF6",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2,
   },
-
-  appTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#F1F5F9',
-    letterSpacing: 0.3,
+  logoGlow: {
+    position: "absolute",
+    top: -4,
+    left: -4,
+    right: -4,
+    bottom: -4,
+    borderRadius: 26,
+    backgroundColor: "rgba(139, 92, 246, 0.2)",
+    zIndex: 1,
   },
-
-  appSubtitle: {
-    fontSize: 10,
-    color: '#CBD5E1',
-    fontWeight: '500',
-    marginTop: -1,
+  brandText: {
+    alignItems: "flex-start",
   },
-
-  rightSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  appName: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#FFFFFF",
+    letterSpacing: 1,
+    marginBottom: -2,
   },
-
-  statusSection: {
-    alignItems: 'flex-end',
-  },
-
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 1,
-  },
-
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 4,
-  },
-
-  statusText: {
+  tagline: {
     fontSize: 11,
-    fontWeight: '600',
+    color: "#8B5CF6",
+    fontWeight: "500",
+    letterSpacing: 0.5,
   },
-
-  onlineText: {
-    fontSize: 9,
-    color: '#94A3B8',
-    fontWeight: '500',
-  },
-
   menuButton: {
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 16,
-    backgroundColor: 'transparent',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(139, 92, 246, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.3)',
+    borderColor: "rgba(139, 92, 246, 0.2)",
   },
-
-  dot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: '#F1F5F9',
-    marginVertical: 0.5,
+  menuIcon: {
+    alignItems: "center",
+    gap: 3,
+  },
+  menuDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#8B5CF6",
   },
 })

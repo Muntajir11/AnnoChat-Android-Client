@@ -1,32 +1,39 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Linking, ActivityIndicator } from 'react-native';
-import { ChatWindow } from '../components/ChatWindow';
-import { MessageInput } from '../components/MessageInput';
-import { Header } from '../components/Header';
-import { useChatContext } from '../contexts/ChatContext';
-import type { Message } from '../../types';
-import Ionicons from 'react-native-vector-icons/Ionicons';
-import analytics from '@react-native-firebase/analytics';
+"use client"
 
-const SERVER_URL = 'https://muntajir.me';
-const SOCKET_TOKEN_URL = 'https://annochat.social/api/get-socket-token';
+import type React from "react"
+import { useState, useEffect, useRef } from "react"
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions, Animated, Easing } from "react-native"
+import { Header } from "../components/Header"
+import { useChatContext } from "../contexts/ChatContext"
+import Ionicons from "react-native-vector-icons/Ionicons"
+import analytics from "@react-native-firebase/analytics"
+
+const SERVER_URL = "https://muntajir.me"
+const SOCKET_TOKEN_URL = "https://annochat.social/api/get-socket-token"
 
 interface TextChatScreenProps {
-  navigation: any;
-  onMenuPress?: () => void;
-  onChatStatusChange?: (isConnected: boolean) => void;
+  navigation: any
+  onMenuPress?: () => void
+  onChatStatusChange?: (isConnected: boolean) => void
 }
 
-export const TextChatScreen: React.FC<TextChatScreenProps> = ({ navigation, onMenuPress, onChatStatusChange }) => {
-  const [isSearching, setIsSearching] = useState(false);
-  const [authToken, setAuthToken] = useState<string | null>(null);
-  const [strangerLeft, setStrangerLeft] = useState(false);
-  const [isButtonDisabled, setIsButtonDisabled] = useState(false);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const presenceWsRef = useRef<WebSocket | null>(null);
-  const presenceConnectingRef = useRef(false);
+const { width, height } = Dimensions.get("window")
 
-  // Use ChatContext instead of local state
+export const TextChatScreen: React.FC<TextChatScreenProps> = ({ navigation, onMenuPress, onChatStatusChange }) => {
+  const [isSearching, setIsSearching] = useState(false)
+  const [authToken, setAuthToken] = useState<string | null>(null)
+  const [strangerLeft, setStrangerLeft] = useState(false)
+  const [isButtonDisabled, setIsButtonDisabled] = useState(false)
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const presenceWsRef = useRef<WebSocket | null>(null)
+  const presenceConnectingRef = useRef(false)
+
+  // Animation refs
+  const pulseAnim = useRef(new Animated.Value(1)).current
+  const rotateAnim = useRef(new Animated.Value(0)).current
+  const scaleAnim = useRef(new Animated.Value(0)).current
+  const fadeAnim = useRef(new Animated.Value(0)).current
+
   const {
     messages,
     setMessages,
@@ -42,19 +49,74 @@ export const TextChatScreen: React.FC<TextChatScreenProps> = ({ navigation, onMe
     setOnSendMessage,
     setOnDisconnect,
     setOnChangeText,
-  } = useChatContext();
+  } = useChatContext()
 
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(false)
+
+  // Start animations on mount
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 800,
+        easing: Easing.elastic(1.2),
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start()
+
+    // Continuous pulse animation
+    const pulseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.1,
+          duration: 2000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 2000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    )
+    pulseAnimation.start()
+
+    return () => pulseAnimation.stop()
+  }, [])
+
+  // Searching animation
+  useEffect(() => {
+    if (isSearching) {
+      const rotateAnimation = Animated.loop(
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 3000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+      )
+      rotateAnimation.start()
+    } else {
+      rotateAnim.setValue(0)
+    }
+  }, [isSearching])
 
   const fetchToken = async () => {
     try {
-      const res = await fetch(SOCKET_TOKEN_URL);
-      const data = await res.json();
-      setAuthToken(data.token || null);
+      const res = await fetch(SOCKET_TOKEN_URL)
+      const data = await res.json()
+      setAuthToken(data.token || null)
     } catch {
-      console.error('Failed to fetch token');
+      console.error("Failed to fetch token")
     }
-  };
+  }
 
   useEffect(() => {
     const connectPresence = () => {
@@ -64,528 +126,502 @@ export const TextChatScreen: React.FC<TextChatScreenProps> = ({ navigation, onMe
           (presenceWsRef.current.readyState === WebSocket.CONNECTING ||
             presenceWsRef.current.readyState === WebSocket.OPEN))
       ) {
-        return;
+        return
       }
-      presenceConnectingRef.current = true;
+      presenceConnectingRef.current = true
       const presenceWs = new WebSocket(
-        `${SERVER_URL.replace('http://', 'ws://').replace(
-          'https://',
-          'wss://'
-        )}/presence`
-      );
-      presenceWsRef.current = presenceWs;
+        `${SERVER_URL.replace("http://", "ws://").replace("https://", "wss://")}/presence`,
+      )
+      presenceWsRef.current = presenceWs
 
       presenceWs.onopen = () => {
-        presenceConnectingRef.current = false;
-        setStatus('Ready');
-      };
+        presenceConnectingRef.current = false
+        setStatus("Ready")
+      }
 
-      presenceWs.onmessage = e => {
-        const { event, data } = JSON.parse(e.data);
-        if (event === 'onlineUsers') {
-          setOnlineUsers(data);
+      presenceWs.onmessage = (e) => {
+        const { event, data } = JSON.parse(e.data)
+        if (event === "onlineUsers") {
+          setOnlineUsers(data)
         }
-      };
+      }
 
-      presenceWs.onerror = error => {
-        presenceConnectingRef.current = false;
-      };
+      presenceWs.onerror = (error) => {
+        presenceConnectingRef.current = false
+      }
 
-      presenceWs.onclose = event => {
-        presenceConnectingRef.current = false;
+      presenceWs.onclose = (event) => {
+        presenceConnectingRef.current = false
 
         if (event.code !== 1000 && presenceWsRef.current === presenceWs) {
           setTimeout(() => {
-            if (
-              presenceWsRef.current === presenceWs ||
-              !presenceWsRef.current
-            ) {
-              connectPresence();
+            if (presenceWsRef.current === presenceWs || !presenceWsRef.current) {
+              connectPresence()
             }
-          }, 3000);
+          }, 3000)
         }
-      };
-    };
+      }
+    }
 
-    connectPresence();
+    connectPresence()
 
     return () => {
       if (presenceWsRef.current) {
-        presenceWsRef.current.close();
+        presenceWsRef.current.close()
       }
-    };
-  }, []);
+    }
+  }, [])
 
   useEffect(() => {
-    fetchToken();
-  }, []);
+    fetchToken()
+  }, [])
 
   useEffect(() => {
-    if (!authToken) return;
+    if (!authToken) return
 
     return () => {
       if (chatWsRef.current && chatWsRef.current.close) {
-        chatWsRef.current.close();
+        chatWsRef.current.close()
       }
-    };
-  }, [authToken]);
+    }
+  }, [authToken])
 
-  // Update context with function handlers
   useEffect(() => {
     setOnSendMessage(() => (text: string) => {
-      if (!text.trim() || !roomId || strangerLeft) return;
-      setMessages(m => [
+      if (!text.trim() || !roomId || strangerLeft) return
+      setMessages((m) => [
         ...m,
         {
           id: `you-${Date.now()}`,
           text,
-          sender: 'user',
+          sender: "user",
           timestamp: new Date(),
         },
-      ]);
+      ])
 
-      const chat = chatWsRef.current;
+      const chat = chatWsRef.current
       if (chat && chat.readyState === WebSocket.OPEN) {
-        chat.send(
-          JSON.stringify({ event: 'chat message', data: { roomId, msg: text } })
-        );
+        chat.send(JSON.stringify({ event: "chat message", data: { roomId, msg: text } }))
         chat.send(
           JSON.stringify({
-            event: 'typing',
+            event: "typing",
             data: { roomId, isTyping: false },
-          })
-        );
+          }),
+        )
       }
 
       if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-        typingTimeoutRef.current = null;
+        clearTimeout(typingTimeoutRef.current)
+        typingTimeoutRef.current = null
       }
-    });
-    
+    })
+
     setOnDisconnect(() => () => {
-      leaveRoom();
-      navigation.goBack();
-    });
-    
-    setOnChangeText(() => (txt: string) => {
-      if (!roomId) return;
+      leaveRoom()
+      navigation.goBack()
+    })
 
-      const chat = chatWsRef.current;
+    setOnChangeText(() => (txt: string) => {
+      if (!roomId) return
+
+      const chat = chatWsRef.current
       if (chat && chat.readyState === WebSocket.OPEN) {
-        chat.send(
-          JSON.stringify({ event: 'typing', data: { roomId, isTyping: true } })
-        );
+        chat.send(JSON.stringify({ event: "typing", data: { roomId, isTyping: true } }))
       }
 
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
 
       typingTimeoutRef.current = setTimeout(() => {
         if (chat && chat.readyState === WebSocket.OPEN) {
           chat.send(
             JSON.stringify({
-              event: 'typing',
+              event: "typing",
               data: { roomId, isTyping: false },
-            })
-          );
+            }),
+          )
         }
-        typingTimeoutRef.current = null;
-      }, 1500);
-    });
-  }, [roomId, strangerLeft, setMessages, setOnSendMessage, setOnDisconnect, setOnChangeText]);
+        typingTimeoutRef.current = null
+      }, 1500)
+    })
+  }, [roomId, strangerLeft, setMessages, setOnSendMessage, setOnDisconnect, setOnChangeText])
 
-  // Navigate to separate Chat screen when connected
   useEffect(() => {
     if (isConnected) {
-      navigation.navigate('Chat');
+      navigation.navigate("Chat")
     }
-  }, [isConnected]);
+  }, [isConnected])
 
   const connectChat = () => {
     if (chatWsRef.current) {
-      chatWsRef.current.close();
-      chatWsRef.current = null;
+      chatWsRef.current.close()
+      chatWsRef.current = null
     }
-    const chatUrl = `${SERVER_URL.replace('http://', 'ws://').replace(
-      'https://',
-      'wss://'
-    )}/?token=${authToken}`;
-    const chatWs = new WebSocket(chatUrl);
-    chatWsRef.current = chatWs;
+    const chatUrl = `${SERVER_URL.replace("http://", "ws://").replace("https://", "wss://")}/?token=${authToken}`
+    const chatWs = new WebSocket(chatUrl)
+    chatWsRef.current = chatWs
 
-    chatWs.onopen = () => {};
+    chatWs.onopen = () => {}
 
-    chatWs.onmessage = e => {
-      const { event, data } = JSON.parse(e.data);
+    chatWs.onmessage = (e) => {
+      const { event, data } = JSON.parse(e.data)
 
       switch (event) {
-        case 'matched':
-          setIsSearching(false);
-          setIsConnected(true);
-          setRoomId(data.roomId);
-          setStrangerLeft(false);
+        case "matched":
+          setIsSearching(false)
+          setIsConnected(true)
+          setRoomId(data.roomId)
+          setStrangerLeft(false)
           setMessages([
             {
-              id: 'system-1',
-              text: 'You are now chatting with a stranger.\nSay hi!',
-              sender: 'system',
+              id: "system-1",
+              text: "You are now chatting with a stranger.\nSay hi!",
+              sender: "system",
               timestamp: new Date(),
             },
-          ]);
+          ])
 
-          chatWs.send(
-            JSON.stringify({ event: 'join room', data: data.roomId })
-          );
-          break;
+          chatWs.send(JSON.stringify({ event: "join room", data: data.roomId }))
+          break
 
-        case 'chat message':
-          if (data.senderId !== 'self') {
-            setMessages(m => [
+        case "chat message":
+          if (data.senderId !== "self") {
+            setMessages((m) => [
               ...m,
               {
                 id: `str-${Date.now()}`,
                 text: data.msg,
-                sender: 'stranger',
+                sender: "stranger",
                 timestamp: new Date(),
               },
-            ]);
+            ])
           }
-          break;
+          break
 
-        case 'typing':
-          if (data.senderId !== 'self') {
-            setStrangerTyping(data.isTyping);
+        case "typing":
+          if (data.senderId !== "self") {
+            setStrangerTyping(data.isTyping)
           }
-          break;
+          break
 
-        case 'user disconnected':
-          setMessages(prev => {
-            if (prev.some(m => m.text.includes('Stranger has disconnected')))
-              return prev;
+        case "user disconnected":
+          setMessages((prev) => {
+            if (prev.some((m) => m.text.includes("Stranger has disconnected"))) return prev
             return [
               ...prev,
               {
                 id: `sysdisc-${Date.now()}`,
-                text: 'Stranger has disconnected. Tap Exit to leave.',
-                sender: 'system',
+                text: "Stranger has disconnected. Tap Exit to leave.",
+                sender: "system",
                 timestamp: new Date(),
               },
-            ];
-          });
-          setStrangerLeft(true);
-          setStrangerTyping(false);
-          break;
+            ]
+          })
+          setStrangerLeft(true)
+          setStrangerTyping(false)
+          break
 
-        case 'error':
-          if (data && data.message === 'Auth failed') {
-            setStatus('Authentication failed. Please try again.');
-            chatWs.close();
-            setIsConnected(false);
-            setIsSearching(false);
+        case "error":
+          if (data && data.message === "Auth failed") {
+            setStatus("Authentication failed. Please try again.")
+            chatWs.close()
+            setIsConnected(false)
+            setIsSearching(false)
           } else {
-            setStatus(`Error: ${data.message || 'Unknown error'}`);
+            setStatus(`Error: ${data.message || "Unknown error"}`)
           }
-          break;
+          break
       }
-    };
+    }
 
-    chatWs.onerror = error => {
-      setIsSearching(false);
-      setStatus('Connection failed.');
-    };
+    chatWs.onerror = (error) => {
+      setIsSearching(false)
+      setStatus("Connection failed.")
+    }
 
-    chatWs.onclose = event => {
+    chatWs.onclose = (event) => {
       if (chatWsRef.current === chatWs) {
-        chatWsRef.current = null;
+        chatWsRef.current = null
       }
-    };
-  };
+    }
+  }
 
   const handleFindChat = () => {
-    if (isButtonDisabled || status !== 'Ready') return;
-    
-    setIsButtonDisabled(true);
-    setTimeout(() => setIsButtonDisabled(false), 1500); // 1.5 second delay
-    
-    analytics().logEvent('search_started');
+    if (isButtonDisabled || status !== "Ready") return
 
-    if (isConnected && roomId) leaveRoom();
-    setRoomId(null);
-    setMessages([]);
+    setIsButtonDisabled(true)
+    setTimeout(() => setIsButtonDisabled(false), 1500)
+
+    analytics().logEvent("search_started")
+
+    if (isConnected && roomId) leaveRoom()
+    setRoomId(null)
+    setMessages([])
 
     if (authToken) {
-      connectChat();
-      setIsSearching(true);
-      setStatus('Searching for a match...');
+      connectChat()
+      setIsSearching(true)
+      setStatus("Searching for a match...")
     } else {
-      console.log('Auth token not available yet. Cannot connect to chat.');
+      console.log("Auth token not available yet. Cannot connect to chat.")
     }
-  };
+  }
 
   const handleCancelSearch = () => {
-    if (isButtonDisabled) return;
-    
-    setIsButtonDisabled(true);
-    setTimeout(() => setIsButtonDisabled(false), 1000); // 1 second delay
-    
+    if (isButtonDisabled) return
+
+    setIsButtonDisabled(true)
+    setTimeout(() => setIsButtonDisabled(false), 1000)
+
     if (chatWsRef.current) {
-      chatWsRef.current.close();
-      chatWsRef.current = null;
+      chatWsRef.current.close()
+      chatWsRef.current = null
     }
-    setIsSearching(false);
-    setStatus('Ready');
-  };
+    setIsSearching(false)
+    setStatus("Ready")
+  }
 
   const leaveRoom = () => {
-    const chat = chatWsRef.current;
+    const chat = chatWsRef.current
     if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
+      clearTimeout(typingTimeoutRef.current)
+      typingTimeoutRef.current = null
     }
     if (chat && chat.readyState === WebSocket.OPEN && roomId) {
       chat.send(
         JSON.stringify({
-          event: 'typing',
+          event: "typing",
           data: { roomId, isTyping: false },
-        })
-      );
-      chat.send(JSON.stringify({ event: 'leave room', data: roomId }));
+        }),
+      )
+      chat.send(JSON.stringify({ event: "leave room", data: roomId }))
     }
     if (chat) {
-      chat.close();
+      chat.close()
     }
-    setIsConnected(false);
-    setRoomId(null);
-    setMessages([]);
-    setStrangerTyping(false);
-    setStatus('Ready');
-  };
+    setIsConnected(false)
+    setRoomId(null)
+    setMessages([])
+    setStrangerTyping(false)
+    setStatus("Ready")
+  }
 
-  const handleTouch = (e: any) => {};
+  const spin = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  })
 
   return (
     <View style={styles.container}>
-      <View style={styles.searchContainer}>
-        <Header
-          isConnected={isConnected}
-          onlineUsers={onlineUsers}
-          status={status}
-          onMenuPress={onMenuPress}
-        />
-        
-        <View style={styles.searchContent}>
-            <View style={styles.heroSection}>
-            {isSearching ? (
-              <View style={styles.searchingContainer}>
-                <View style={styles.searchingIcon}>
-                  <ActivityIndicator size="large" color="#10B981" />
-                  <View style={styles.searchingDots}>
-                    <View style={styles.searchDot} />
-                    <View style={styles.searchDot} />
-                    <View style={styles.searchDot} />
-                  </View>
-                </View>
-                <Text style={styles.searchingTitle}>Discovering Someone New</Text>
-                <Text style={styles.searchingSubtitle}>Connecting you with an interesting stranger...</Text>
-                
-                <View style={styles.statusIndicator}>
-                  <View style={[styles.statusDot, { backgroundColor: '#F59E0B' }]} />
-                  <Text style={styles.statusText}>{status}</Text>
-                  <Text style={styles.onlineCount}>{onlineUsers} online</Text>
-                </View>
-              </View>
-            ) : (
-              <View style={styles.welcomeContainer}>
-                <View style={styles.heroIcon}>
-                  <Ionicons name="globe-outline" size={50} color="#10B981" />
-                </View>
-                <Text style={styles.heroTitle}>Connect Worldwide</Text>
-                <Text style={styles.heroSubtitle}>Meet strangers, share stories, discover new perspectives from around the globe</Text>
-                
-                <View style={styles.statusIndicator}>
-                  <View style={[styles.statusDot, { backgroundColor: status === 'Ready' ? '#10B981' : '#F59E0B' }]} />
-                  <Text style={styles.statusText}>{status}</Text>
-                  <Text style={styles.onlineCount}>{onlineUsers} online</Text>
-                </View>
-              </View>
-            )}
+      <Header isConnected={isConnected} onlineUsers={onlineUsers} status={status} onMenuPress={onMenuPress} />
+
+      <Animated.View style={[styles.mainContent, { opacity: fadeAnim }]}>
+        {/* Status Chip - Top Right */}
+        <View style={styles.statusContainer}>
+          <View style={styles.statusChip}>
+            <View style={[styles.statusDot, { backgroundColor: status === "Ready" ? "#4ECDC4" : "#FFD93D" }]} />
+            <Text style={styles.statusChipText}>{onlineUsers} online</Text>
           </View>
-          
+        </View>
+
+        {/* Main Search Interface */}
+        <View style={styles.searchInterface}>
+          <Animated.View
+            style={[
+              styles.centralOrb,
+              {
+                transform: [{ scale: Animated.multiply(scaleAnim, pulseAnim) }, { rotate: spin }],
+              },
+            ]}
+          >
+            <View style={styles.orbInner}>
+              {isSearching ? (
+                <ActivityIndicator size="large" color="#FFFFFF" />
+              ) : (
+                <Ionicons name="planet" size={60} color="#FFFFFF" />
+              )}
+            </View>
+
+            {/* Orbital rings */}
+            <View style={styles.orbitalRing1} />
+            <View style={styles.orbitalRing2} />
+            <View style={styles.orbitalRing3} />
+          </Animated.View>
+
+          <Text style={styles.mainTitle}>{isSearching ? "Searching Universe..." : "Discover Someone New"}</Text>
+
+          <Text style={styles.subtitle}>
+            {isSearching
+              ? "Finding your perfect conversation partner"
+              : "Connect instantly with fascinating people worldwide"}
+          </Text>
+        </View>
+
+        {/* Centered Quick Match Button */}
+        <View style={styles.centerActionContainer}>
           <TouchableOpacity
             style={[
-              styles.searchButton,
-              isSearching && !isButtonDisabled && styles.searchingButton,
-              (isButtonDisabled || (status !== 'Ready' && !isSearching)) && styles.disabledButton,
+              styles.quickMatchButton,
+              isSearching && styles.quickMatchButtonActive,
+              (isButtonDisabled || (status !== "Ready" && !isSearching)) && styles.quickMatchButtonDisabled,
             ]}
             onPress={isSearching ? handleCancelSearch : handleFindChat}
-            disabled={isButtonDisabled || (status !== 'Ready' && !isSearching)}>
-            <Text style={[
-              styles.searchButtonText,
-              (isButtonDisabled || (status !== 'Ready' && !isSearching)) && styles.disabledButtonText
-            ]}>
-              {isSearching ? 'Cancel Search' : status !== 'Ready' ? 'Connecting...' : 'Start Chatting'}
+            disabled={isButtonDisabled || (status !== "Ready" && !isSearching)}
+          >
+            <Ionicons name={isSearching ? "stop-circle" : "flash"} size={24} color="#FFFFFF" />
+            <Text
+              style={[
+                styles.quickMatchButtonText,
+                (isButtonDisabled || (status !== "Ready" && !isSearching)) && styles.quickMatchButtonDisabledText,
+              ]}
+            >
+              {isSearching ? "Stop" : "Quick Match"}
             </Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </Animated.View>
     </View>
-  );
-};
+  )
+}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: "#0A0A0F",
   },
-  searchContainer: {
+  mainContent: {
     flex: 1,
-    backgroundColor: '#0F172A',
-  },
-  searchContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  heroSection: {
-    alignItems: 'center',
-    marginBottom: 60,
-  },
-  searchingContainer: {
-    alignItems: 'center',
-  },
-  searchingIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-    borderWidth: 2,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    position: 'relative',
-  },
-  searchingDots: {
-    position: 'absolute',
-    bottom: -15,
-    flexDirection: 'row',
-    gap: 4,
-  },
-  searchDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#34D399',
-    opacity: 0.7,
-  },
-  searchingTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#F1F5F9',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  searchingSubtitle: {
-    fontSize: 15,
-    color: '#94A3B8',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 32,
-    fontWeight: '400',
-  },
-  welcomeContainer: {
-    alignItems: 'center',
-  },
-  heroIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 32,
-    borderWidth: 2,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-  },
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#F1F5F9',
-    marginBottom: 12,
-    textAlign: 'center',
-    letterSpacing: 0.3,
-  },
-  heroSubtitle: {
-    fontSize: 15,
-    color: '#94A3B8',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 32,
-    maxWidth: 300,
-    fontWeight: '400',
-  },
-  statusIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(30, 41, 59, 0.8)',
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 24,
+  },
+  statusContainer: {
+    alignItems: "flex-end",
+    marginTop: 20,
+    marginBottom: 20,
+  },
+  statusChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(78, 205, 196, 0.1)",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    gap: 8,
     borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.2)',
+    borderColor: "rgba(78, 205, 196, 0.2)",
   },
   statusDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    marginRight: 8,
   },
-  statusText: {
-    fontSize: 14,
-    color: '#F1F5F9',
-    fontWeight: '600',
-    marginRight: 12,
+  statusChipText: {
+    color: "#4ECDC4",
+    fontSize: 13,
+    fontWeight: "600",
   },
-  onlineCount: {
-    fontSize: 14,
-    color: '#6EE7B7',
-    fontWeight: '500',
+  searchInterface: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  searchButton: {
-    backgroundColor: '#10B981',
-    paddingHorizontal: 40,
-    paddingVertical: 18,
-    borderRadius: 24,
-    minWidth: 240,
-    alignItems: 'center',
-    justifyContent: 'center',
+  centralOrb: {
+    width: 200,
+    height: 200,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 40,
+    position: "relative",
+  },
+  orbInner: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "#8B5CF6",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 3,
+    shadowColor: "#8B5CF6",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  orbitalRing1: {
+    position: "absolute",
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    borderWidth: 2,
+    borderColor: "rgba(139, 92, 246, 0.3)",
+    borderStyle: "dashed",
+  },
+  orbitalRing2: {
+    position: "absolute",
+    width: 180,
+    height: 180,
+    borderRadius: 90,
     borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.4)',
-    elevation: 8,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    borderColor: "rgba(78, 205, 196, 0.2)",
   },
-  searchingButton: {
-    backgroundColor: '#DC2626',
-    borderColor: 'rgba(220, 38, 38, 0.4)',
-    shadowColor: '#000000',
+  orbitalRing3: {
+    position: "absolute",
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: "rgba(255, 211, 61, 0.15)",
   },
-  disabledButton: {
-    backgroundColor: '#334155',
-    borderColor: 'rgba(148, 163, 184, 0.3)',
-    opacity: 0.6,
-    shadowOpacity: 0.1,
+  mainTitle: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    textAlign: "center",
+    marginBottom: 12,
+    letterSpacing: -0.5,
   },
-  searchButtonText: {
-    color: '#FFFFFF',
+  subtitle: {
     fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    color: "#9CA3AF",
+    textAlign: "center",
+    lineHeight: 24,
+    maxWidth: 300,
   },
-  disabledButtonText: {
-    opacity: 0.7,
+  centerActionContainer: {
+    alignItems: "center",
+    paddingBottom: 140, // Space for tabs
   },
-});
+  quickMatchButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#8B5CF6",
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 30,
+    gap: 12,
+    minWidth: 180,
+    justifyContent: "center",
+    shadowColor: "#8B5CF6",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  quickMatchButtonActive: {
+    backgroundColor: "#FF6B6B",
+    shadowColor: "#FF6B6B",
+  },
+  quickMatchButtonDisabled: {
+    backgroundColor: "#374151",
+    shadowOpacity: 0.1,
+    shadowColor: "#000000",
+    opacity: 0.6,
+  },
+  quickMatchButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+  quickMatchButtonDisabledText: {
+    color: "#9CA3AF",
+  },
+})
