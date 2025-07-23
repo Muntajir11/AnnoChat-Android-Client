@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import {
   View,
   Text,
@@ -25,6 +25,7 @@ import config, { ICE_SERVERS } from '../config/config';
 import { requestCameraAndMicrophonePermissions } from '../utils/permissions';
 import { getVideoToken } from '../utils/videoToken';
 import { useAudioManager } from '../utils/useAudioManager';
+import KeepAwake from 'react-native-keep-awake';
 
 const { width, height } = Dimensions.get('window');
 
@@ -32,12 +33,24 @@ const WEBSOCKET_URL = config.videoUrl;
 
 type ConnectionStatus = "disconnected" | "connecting" | "connected" | "searching" | "matched" | "in-call";
 
+export interface VideoChatScreenRef {
+  disconnect: () => void;
+  reconnect: () => void;
+}
+
 interface VideoChatScreenProps {
   onMenuPress?: () => void;
   onChatStatusChange?: (isConnected: boolean) => void;
+  shouldAutoConnect?: boolean;
+  shouldDisconnectOnTabSwitch?: boolean;
 }
 
-export const VideoChatScreen: React.FC<VideoChatScreenProps> = ({ onMenuPress, onChatStatusChange }) => {
+export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenProps>(({ 
+  onMenuPress, 
+  onChatStatusChange, 
+  shouldAutoConnect = false,
+  shouldDisconnectOnTabSwitch = false 
+}, ref) => {
   // Audio management hook
   const {
     currentDevice,
@@ -141,7 +154,7 @@ export const VideoChatScreen: React.FC<VideoChatScreenProps> = ({ onMenuPress, o
     };
   }, []);
 
-  // Call timer effect
+  // Call timer effect and keep screen awake during call
   useEffect(() => {
     if (isInCall) {
       // Start timer when call begins
@@ -149,6 +162,9 @@ export const VideoChatScreen: React.FC<VideoChatScreenProps> = ({ onMenuPress, o
       callTimerRef.current = setInterval(() => {
         setCallDuration(prev => prev + 1);
       }, 1000);
+      
+      // Keep screen awake during video call
+      KeepAwake.activate();
     } else {
       // Stop and reset timer when call ends
       if (callTimerRef.current) {
@@ -156,6 +172,9 @@ export const VideoChatScreen: React.FC<VideoChatScreenProps> = ({ onMenuPress, o
         callTimerRef.current = null;
       }
       setCallDuration(0);
+      
+      // Allow screen to sleep when call ends
+      KeepAwake.deactivate();
     }
 
     return () => {
@@ -163,8 +182,61 @@ export const VideoChatScreen: React.FC<VideoChatScreenProps> = ({ onMenuPress, o
         clearInterval(callTimerRef.current);
         callTimerRef.current = null;
       }
+      // Ensure screen sleep is restored on cleanup
+      KeepAwake.deactivate();
     };
   }, [isInCall]);
+
+  // Unified auto-connection and reconnection logic
+  useEffect(() => {
+    console.log('Connection management effect:', {
+      shouldAutoConnect,
+      connectionStatus,
+      shouldDisconnectOnTabSwitch,
+      isProcessing,
+      hasWebSocket: !!wsRef.current
+    });
+
+    // Handle disconnection when tab switch requires it
+    if (shouldDisconnectOnTabSwitch && connectionStatus !== "disconnected") {
+      console.log('Auto-disconnecting from video server due to tab switch...');
+      disconnect();
+      return;
+    }
+
+    // Handle auto-connection (only if not already connected or connecting)
+    if (shouldAutoConnect && 
+        connectionStatus === "disconnected" && 
+        !shouldDisconnectOnTabSwitch && 
+        !isProcessing &&
+        !wsRef.current) {
+      
+      console.log('Auto-connecting to video server...');
+      // Delay slightly to ensure component is fully mounted
+      const timer = setTimeout(() => {
+        // Double-check we still need to connect
+        if (connectionStatus === "disconnected" && !wsRef.current) {
+          connectToServer();
+        }
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [shouldAutoConnect, connectionStatus, shouldDisconnectOnTabSwitch, isProcessing]);
+
+  // Expose methods to parent component
+  useImperativeHandle(ref, () => ({
+    disconnect: () => {
+      console.log('Disconnecting via ref...');
+      disconnect();
+    },
+    reconnect: () => {
+      console.log('Reconnecting via ref...');
+      if (connectionStatus === "disconnected") {
+        connectToServer();
+      }
+    }
+  }), [connectionStatus]);
 
   // Monitor remote stream for video track changes
   useEffect(() => {
@@ -232,6 +304,9 @@ export const VideoChatScreen: React.FC<VideoChatScreenProps> = ({ onMenuPress, o
     if (isAudioSetup) {
       restoreAudioSettings().catch(console.error);
     }
+
+    // Ensure screen can sleep again
+    KeepAwake.deactivate();
 
     setIsCameraOn(true);
     setIsMicOn(true);
@@ -1293,8 +1368,12 @@ export const VideoChatScreen: React.FC<VideoChatScreenProps> = ({ onMenuPress, o
                   <>
                     <Ionicons name="videocam-outline" size={64} color="#64748B" />
                     <Text style={styles.placeholderText}>
-                      {connectionStatus === "disconnected" 
+                      {connectionStatus === "connecting" 
+                        ? "Connecting to server..." 
+                        : connectionStatus === "disconnected" && !shouldAutoConnect
                         ? "Press CONNECT to start" 
+                        : connectionStatus === "disconnected" && shouldAutoConnect
+                        ? "Connecting automatically..."
                         : connectionStatus === "connected"
                         ? "Press FIND MATCH to search"
                         : "Waiting for stranger..."}
@@ -1505,11 +1584,13 @@ export const VideoChatScreen: React.FC<VideoChatScreenProps> = ({ onMenuPress, o
                 styles.mainButtonText,
                 isButtonDisabled && styles.disabledButtonText
               ]}>
-                {connectionStatus === "disconnected" ? 'CONNECT' :
+                {connectionStatus === "connecting" ? 'CONNECTING...' :
+                 connectionStatus === "disconnected" && !shouldAutoConnect ? 'CONNECT' :
+                 connectionStatus === "disconnected" && shouldAutoConnect ? 'CONNECTING...' :
                  connectionStatus === "connected" ? 'FIND MATCH' :
                  isSearching ? 'CANCEL' :
                  isConnected ? 'DISCONNECT' :
-                 'CONNECT'}
+                 'FIND MATCH'}
               </Text>
             </TouchableOpacity>
 
@@ -1573,7 +1654,7 @@ export const VideoChatScreen: React.FC<VideoChatScreenProps> = ({ onMenuPress, o
       )}
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

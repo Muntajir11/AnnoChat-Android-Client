@@ -1,7 +1,56 @@
 import config from '../config/config';
 
+// Token cache interface
+interface CachedToken {
+  token: string;
+  signature: string;
+  expiresAt: number;
+  fetchedAt: number;
+}
+
+// In-memory token cache
+let tokenCache: CachedToken | null = null;
+
+const isTokenValid = (cachedToken: CachedToken | null): cachedToken is CachedToken => {
+  if (!cachedToken) return false;
+  
+  const now = Date.now();
+  const expiryTime = cachedToken.expiresAt;
+  
+  // Add 5 minute buffer before expiry to be safe (5 * 60 * 1000 = 300000)
+  const bufferTime = 300000;
+  const effectiveExpiryTime = expiryTime - bufferTime;
+  
+  const isValid = now < effectiveExpiryTime;
+  
+  if (!isValid) {
+    console.log('🔄 Token expired or will expire soon:', {
+      now: new Date(now).toISOString(),
+      expiresAt: new Date(expiryTime).toISOString(),
+      effectiveExpiry: new Date(effectiveExpiryTime).toISOString(),
+      remainingMinutes: Math.round((effectiveExpiryTime - now) / 60000)
+    });
+  }
+  
+  return isValid;
+};
+
 export const getVideoToken = async (): Promise<{ token: string; signature: string; expiresAt: number }> => {
   try {
+    // Check if we have a valid cached token
+    if (tokenCache && isTokenValid(tokenCache)) {
+      // TypeScript now knows tokenCache is not null due to the guard above
+      const cachedToken = tokenCache as CachedToken;
+      const remainingTime = Math.round((cachedToken.expiresAt - Date.now()) / 60000);
+      console.log(`🎯 Using cached token (valid for ${remainingTime} more minutes)`);
+      return {
+        token: cachedToken.token,
+        signature: cachedToken.signature,
+        expiresAt: cachedToken.expiresAt
+      };
+    }
+
+    console.log('🔄 Fetching new token from server...');
     const apiUrl = `${config.webClientUrl}/api/video-token`;
 
 
@@ -50,7 +99,17 @@ export const getVideoToken = async (): Promise<{ token: string; signature: strin
       throw new Error('Invalid token response from server');
     }
 
-    console.log('✅ Token fetched successfully');
+    // Cache the new token
+    tokenCache = {
+      token,
+      signature,
+      expiresAt,
+      fetchedAt: Date.now()
+    };
+
+    const validForMinutes = Math.round((expiresAt - Date.now()) / 60000);
+    console.log(`✅ Token fetched successfully and cached (valid for ${validForMinutes} minutes)`);
+    
     return { token, signature, expiresAt };
   } catch (error) {
     console.error('❌ Error getting video token:', error);
@@ -69,4 +128,15 @@ export const getVideoToken = async (): Promise<{ token: string; signature: strin
       throw new Error('Failed to get authorization: Unknown error occurred');
     }
   }
+};
+
+// Optional: Function to clear the token cache manually
+export const clearTokenCache = () => {
+  console.log('🗑️ Clearing token cache');
+  tokenCache = null;
+};
+
+// Optional: Function to check if we have a cached token
+export const hasCachedToken = (): boolean => {
+  return tokenCache !== null && isTokenValid(tokenCache);
 };

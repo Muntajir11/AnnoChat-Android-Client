@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,10 +6,12 @@ import {
   TouchableOpacity,
   Dimensions,
   Platform,
+  AppState,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { TextChatScreen } from '../screens';
 import { VideoChatScreen } from '../screens';
+import { VideoChatScreenRef } from '../screens/VideoChatScreenNew';
 import { SideDrawer } from './SideDrawer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -23,7 +25,45 @@ export const TabNavigator: React.FC<TabNavigatorProps> = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState<TabType>('text');
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
   const [hideTabBar, setHideTabBar] = useState(false);
+  const [appState, setAppState] = useState(AppState.currentState);
+  const videoChatRef = useRef<VideoChatScreenRef>(null);
+  const lastConnectionAttempt = useRef<number>(0);
+  const reconnectionAttempts = useRef<number>(0);
   const insets = useSafeAreaInsets();
+
+  // Handle app state changes for auto-reconnection with rate limit awareness
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: any) => {
+      console.log(`App state changed: ${appState} → ${nextAppState}`);
+      
+      // Let VideoChatScreen handle its own reconnection logic
+      // We'll just track the app state for other potential uses
+      setAppState(nextAppState);
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, [appState]);
+
+  // Handle tab switches and disconnect from video when switching away
+  useEffect(() => {
+    if (activeTab !== 'video' && videoChatRef.current) {
+      console.log('Switching away from video tab, disconnecting...');
+      videoChatRef.current.disconnect();
+    }
+  }, [activeTab]);
+
+  // Handle tab switches
+  const handleTabSwitch = (newTab: TabType) => {
+    console.log(`Switching from ${activeTab} to ${newTab} tab`);
+    
+    // Reset reconnection attempts when successfully switching to video tab
+    if (newTab === 'video') {
+      reconnectionAttempts.current = 0;
+    }
+    
+    setActiveTab(newTab);
+  };
 
   const toggleDrawer = () => {
     setIsDrawerVisible(!isDrawerVisible);
@@ -42,7 +82,7 @@ export const TabNavigator: React.FC<TabNavigatorProps> = ({ navigation }) => {
           styles.tab,
           activeTab === 'text' && styles.activeTab,
         ]}
-        onPress={() => setActiveTab('text')}
+        onPress={() => handleTabSwitch('text')}
         activeOpacity={0.8}>
         <Ionicons 
           name="chatbubble-outline" 
@@ -62,7 +102,7 @@ export const TabNavigator: React.FC<TabNavigatorProps> = ({ navigation }) => {
           styles.tab,
           activeTab === 'video' && styles.activeTab,
         ]}
-        onPress={() => setActiveTab('video')}
+        onPress={() => handleTabSwitch('video')}
         activeOpacity={0.8}>
         <Ionicons 
           name="videocam-outline" 
@@ -90,8 +130,12 @@ export const TabNavigator: React.FC<TabNavigatorProps> = ({ navigation }) => {
           />
         ) : (
           <VideoChatScreen 
+            key="video-chat" // Add key to force re-render on tab switch
+            ref={videoChatRef}
             onMenuPress={toggleDrawer}
             onChatStatusChange={handleChatStatusChange}
+            shouldAutoConnect={true}
+            shouldDisconnectOnTabSwitch={false}
           />
         )}
       </View>
