@@ -1,5 +1,3 @@
-"use client"
-
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react"
 import {
   View,
@@ -29,6 +27,7 @@ import { requestCameraAndMicrophonePermissions } from "../utils/permissions"
 import { getVideoToken } from "../utils/videoToken"
 import { useAudioManager } from "../utils/useAudioManager"
 import KeepAwake from "react-native-keep-awake"
+import RTCDataChannel from "react-native-webrtc/lib/typescript/RTCDataChannel"
 
 const { width, height } = Dimensions.get("window")
 
@@ -77,6 +76,8 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
     const [isProcessing, setIsProcessing] = useState(false)
     const [isLocalVideoLarge, setIsLocalVideoLarge] = useState(false)
     const [isRemoteCameraOn, setIsRemoteCameraOn] = useState(true)
+    const [isRemoteMicOn, setIsRemoteMicOn] = useState(true)
+    const dataChannelRef = useRef<RTCDataChannel | null>(null)
     const [videoKey, setVideoKey] = useState(0)
 
     // Animation refs
@@ -104,6 +105,25 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
     const [callDuration, setCallDuration] = useState(0)
     const callTimerRef = useRef<NodeJS.Timeout | null>(null)
 
+    // Ref to track if skip was pressed and we should auto-search after disconnect
+    const shouldAutoSearchNextRef = useRef(false)
+
+const sendDataChannelMessage = (message: any) => {
+  try {
+    if (dataChannelRef.current && dataChannelRef.current.readyState === "open") {
+      dataChannelRef.current.send(JSON.stringify(message));
+    } else {
+      console.warn("DataChannel not ready, message not sent:", message);
+    }
+  } catch (error) {
+    console.error("Failed to send DataChannel message:", error);
+  }
+};
+
+const requestRemoteState = () => {
+  console.log("Requesting remote peer's current camera/mic state");
+  sendDataChannelMessage({ type: "request-state" });
+};
     // Start animations on mount
     useEffect(() => {
       Animated.parallel([
@@ -448,35 +468,20 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
     )
 
     // Monitor remote stream for video track changes
-    useEffect(() => {
-      if (remoteStreamRef.current && isInCall) {
-        const checkVideoTracks = () => {
-          const videoTracks = remoteStreamRef.current?.getVideoTracks() || []
-          const hasActiveVideo =
-            videoTracks.length > 0 &&
-            videoTracks[0].enabled &&
-            videoTracks[0].readyState !== "ended" &&
-            videoTracks[0].readyState !== "muted"
-
-          console.log("Checking remote video status:", {
-            tracksCount: videoTracks.length,
-            enabled: videoTracks[0]?.enabled,
-            readyState: videoTracks[0]?.readyState,
-            hasActiveVideo,
-          })
-
-          setIsRemoteCameraOn(hasActiveVideo)
-        }
-
-        checkVideoTracks()
-        const interval = setInterval(checkVideoTracks, 500)
-
-        return () => clearInterval(interval)
-      } else {
-        setIsRemoteCameraOn(true)
-      }
-    }, [isInCall, remoteStreamRef.current])
-
+useEffect(() => {
+  if (remoteStreamRef.current && isInCall && !dataChannelRef.current) {
+    // Only monitor tracks if DataChannel is not available
+    const checkVideoTracks = () => {
+      const videoTracks = remoteStreamRef.current?.getVideoTracks() || []
+      const hasActiveVideo = videoTracks.length > 0 && videoTracks[0].enabled && videoTracks[0].readyState !== "ended"
+      setIsRemoteCameraOn(hasActiveVideo)
+    }
+    
+    checkVideoTracks()
+    const interval = setInterval(checkVideoTracks, 1000) // Less frequent checking
+    return () => clearInterval(interval)
+  }
+}, [isInCall, remoteStreamRef.current, dataChannelRef.current])
     // Format call duration to MM:SS
     const formatCallDuration = (seconds: number) => {
       const mins = Math.floor(seconds / 60)
@@ -683,6 +688,77 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
         })
         peerConnectionRef.current = peerConnection
 
+        // Create DataChannel for signaling camera/mic state
+       let dataChannel: RTCDataChannel | null = null;
+if (isInitiator) {
+  dataChannel = peerConnection.createDataChannel("signal");
+(dataChannel as any).onopen = () => {
+  console.log("DataChannel open - sending initial camera state and requesting remote state");
+  // Send our current state
+  sendDataChannelMessage({ type: "camera", enabled: isCameraOn });
+  sendDataChannelMessage({ type: "mic", enabled: isMicOn });
+  
+  // Request remote peer's current state to ensure sync
+  setTimeout(() => {
+    requestRemoteState();
+  }, 100); // Small delay to ensure remote DataChannel is also ready
+};
+  (dataChannel as any).onmessage = (event: MessageEvent) => {
+  try {
+    const msg = JSON.parse(event.data);
+    console.log("DataChannel message received:", msg);
+    
+    if (msg.type === "camera") {
+      console.log("Setting remote camera state:", msg.enabled);
+      setIsRemoteCameraOn(msg.enabled);
+    }
+    if (msg.type === "mic") {
+      console.log("Setting remote mic state:", msg.enabled);
+      setIsRemoteMicOn(msg.enabled);
+    }
+    if (msg.type === "request-state") {
+      console.log("Remote peer requested current state - sending our camera/mic status");
+      // Send our current state when requested
+      sendDataChannelMessage({ type: "camera", enabled: isCameraOn });
+      sendDataChannelMessage({ type: "mic", enabled: isMicOn });
+    }
+  } catch (e) {
+    console.log("Invalid DataChannel message", event.data);
+  }
+};
+  
+  dataChannelRef.current = dataChannel;
+} else {
+  (peerConnection as any).ondatachannel = (event: any) => {
+    dataChannel = event.channel;
+ (dataChannel as any).onopen = () => {
+  console.log("DataChannel open - sending current camera state");
+  if (dataChannel && dataChannel.readyState === "open") {
+    // Send current state, not state from when DataChannel was created
+    dataChannel.send(JSON.stringify({ type: "camera", enabled: isCameraOn }));
+    dataChannel.send(JSON.stringify({ type: "mic", enabled: isMicOn }));
+  }
+};
+    (dataChannel as any).onmessage = (event: MessageEvent) => {
+      try {
+        const msg = JSON.parse(event.data);
+        console.log("DataChannel message received:", msg);
+        if (msg.type === "camera") {
+          console.log("Setting remote camera state:", msg.enabled);
+          setIsRemoteCameraOn(msg.enabled);
+        }
+        if (msg.type === "mic") {
+          console.log("Setting remote mic state:", msg.enabled);
+          setIsRemoteMicOn(msg.enabled);
+        }
+      } catch (e) {
+        console.log("Invalid DataChannel message", event.data);
+      }
+    };
+    dataChannelRef.current = dataChannel;
+  };
+}
+
         if (localStreamRef.current) {
           try {
             localStreamRef.current.getTracks().forEach((track) => {
@@ -876,6 +952,22 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       }
     }
 
+    // Auto-search for next match after skip when call ends
+    useEffect(() => {
+      if (
+        shouldAutoSearchNextRef.current &&
+        !isInCall &&
+        connectionStatus === "connected" &&
+        wsRef.current &&
+        !isProcessing &&
+        !isSearching
+      ) {
+        // Start searching for next match
+        findMatch()
+        shouldAutoSearchNextRef.current = false
+      }
+    }, [isInCall, connectionStatus, isProcessing, isSearching])
+
     const handlePartnerLeft = () => {
       setStatusMessage("Partner left the call")
       setStatus("Ready")
@@ -904,6 +996,9 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       setRoomId(null)
       setPartnerId(null)
       setRole(null)
+
+      // Remove auto-search logic from here, now handled by useEffect
+      shouldAutoSearchNextRef.current = shouldAutoSearchNextRef.current
     }
 
     const handleCallEnded = () => {
@@ -934,6 +1029,9 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       setRoomId(null)
       setPartnerId(null)
       setRole(null)
+
+      // Remove auto-search logic from here, now handled by useEffect
+      shouldAutoSearchNextRef.current = shouldAutoSearchNextRef.current
     }
 
     const handleConnectToServer = async () => {
@@ -1109,6 +1207,32 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       }
     }
 
+    const handleSkip = async () => {
+      // Remove debounce logic
+      // Set flag to auto-search after call ends
+      shouldAutoSearchNextRef.current = true;
+
+      // Leave current call
+      if (isInCall) {
+        leaveCall();
+      } else {
+        // If not in call, just start searching immediately
+        if (connectionStatus === "connected" && wsRef.current && !isProcessing && !isSearching) {
+          try {
+            console.log("Skip: Not in call, starting search for next match...");
+            await findMatch();
+            shouldAutoSearchNextRef.current = false;
+          } catch (error) {
+            console.error("Error finding next match:", error);
+            setError("Failed to find next match. Please try again.");
+            shouldAutoSearchNextRef.current = false;
+          }
+        } else {
+          shouldAutoSearchNextRef.current = false;
+        }
+      }
+    }
+
     const leaveCall = () => {
       if (wsRef.current) {
         wsRef.current.send(JSON.stringify({ event: "leave-call" }))
@@ -1155,6 +1279,10 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
 
           setIsCameraOn(false)
           console.log("Camera turned OFF in call")
+          // Send camera state to remote peer
+          if (dataChannelRef.current && dataChannelRef.current.readyState === "open") {
+            dataChannelRef.current.send(JSON.stringify({ type: "camera", enabled: false }));
+          }
         } else {
           console.log("Turning camera ON in call")
           try {
@@ -1187,6 +1315,10 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
 
               setIsCameraOn(true)
               console.log("Camera turned ON in call")
+              // Send camera state to remote peer
+              if (dataChannelRef.current && dataChannelRef.current.readyState === "open") {
+                dataChannelRef.current.send(JSON.stringify({ type: "camera", enabled: true }));
+              }
             }
           } catch (error) {
             console.error("Error turning camera on in call:", error)
@@ -1212,11 +1344,19 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
             }
           }
           setIsCameraOn(false)
+          // Send camera state to remote peer
+          if (dataChannelRef.current && dataChannelRef.current.readyState === "open") {
+            dataChannelRef.current.send(JSON.stringify({ type: "camera", enabled: false }));
+          }
         } else {
           if (videoTrack && videoTrack.readyState !== "ended") {
             console.log("Enabling existing video track during search")
             videoTrack.enabled = true
             setIsCameraOn(true)
+            // Send camera state to remote peer
+            if (dataChannelRef.current && dataChannelRef.current.readyState === "open") {
+              dataChannelRef.current.send(JSON.stringify({ type: "camera", enabled: true }));
+            }
           } else {
             console.log("Creating new video track")
             try {
@@ -1296,15 +1436,27 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
           audioTrack.enabled = !audioTrack.enabled
           setIsMicOn(audioTrack.enabled)
           console.log("Audio track toggled:", audioTrack.enabled)
+          // Send mic state to remote peer
+          if (dataChannelRef.current && dataChannelRef.current.readyState === "open") {
+            dataChannelRef.current.send(JSON.stringify({ type: "mic", enabled: audioTrack.enabled }));
+          }
         } else {
           // No audio track (background camera stream), just update state
           setIsMicOn(!isMicOn)
           console.log("No audio track available, just updating state:", !isMicOn)
+          // Send mic state to remote peer
+          if (dataChannelRef.current && dataChannelRef.current.readyState === "open") {
+            dataChannelRef.current.send(JSON.stringify({ type: "mic", enabled: !isMicOn }));
+          }
         }
       } else {
         // No stream at all, just update state
         setIsMicOn(!isMicOn)
         console.log("No stream available, updating mic state:", !isMicOn)
+        // Send mic state to remote peer
+        if (dataChannelRef.current && dataChannelRef.current.readyState === "open") {
+          dataChannelRef.current.send(JSON.stringify({ type: "mic", enabled: !isMicOn }));
+        }
       }
     }
 
@@ -1557,7 +1709,7 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
             style={styles.backgroundCameraView}
             streamURL={localStreamRef.current.toURL()}
             objectFit="cover"
-            mirror={true}
+            mirror={cameraFacing === "user"} 
           />
         )}
         
@@ -1699,214 +1851,172 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
     )
 
     // Render video call interface when in call
-    const renderVideoCall = () => (
-      <View style={styles.videoContainer}>
-        {/* Main Video (Remote or Local based on toggle) */}
-        <View style={styles.remoteVideo}>
+   const renderVideoCall = () => (
+  <View style={styles.videoContainer}>
+    {/* Main Video (Remote or Local based on toggle) */}
+    <View style={styles.remoteVideo}>
+      {isLocalVideoLarge ? (
+        // Show local video in main area when toggled
+        localStreamRef.current ? (
+          <RTCView
+            key={`local-main-${videoKey}`}
+            style={styles.remoteVideoView}
+            streamURL={localStreamRef.current.toURL()}
+            objectFit="cover"
+            mirror={cameraFacing === "user"} 
+          />
+        ) : (
+          <View style={styles.videoPlaceholder}>
+            <View style={styles.placeholderBackground} />
+            <>
+              <Ionicons name="videocam" size={48} color="#FF6B6B" />
+              <Text style={styles.placeholderText}>Your Video</Text>
+            </>
+          </View>
+        )
+      ) : (
+        // Show remote video or placeholder based on isRemoteCameraOn state from DataChannel
+        remoteStreamRef.current && isRemoteCameraOn ? (
+          <RTCView
+            style={styles.remoteVideoView}
+            streamURL={remoteStreamRef.current.toURL()}
+            objectFit="cover"
+            mirror={false}
+          />
+        ) : (
+          <View style={styles.noVideoContainer}>
+            <View style={styles.placeholderBackground} />
+            <Ionicons name="videocam-off" size={60} color="#6b7280" />
+            <Text style={styles.noVideoText}>Stranger turned off camera</Text>
+          </View>
+        )
+      )}
+    </View>
+
+    {/* Small Video (Local or Remote based on toggle) */}
+    <Animated.View
+      style={[
+        styles.localVideo,
+        {
+          transform: localVideoPosition.getTranslateTransform(),
+        },
+      ]}
+      {...panResponder.panHandlers}
+    >
+      <TouchableWithoutFeedback onPress={handleLocalVideoTouch}>
+        <View style={styles.localVideoTouchArea}>
           {isLocalVideoLarge ? (
-            // Show local video in main area when toggled
-            localStreamRef.current ? (
-              <RTCView
-                key={`local-main-${videoKey}`}
-                style={styles.remoteVideoView}
-                streamURL={localStreamRef.current.toURL()}
-                objectFit="cover"
-                mirror={true}
-              />
+            // Show remote video in small area when toggled
+            remoteStreamRef.current && isRemoteCameraOn ? (
+              <>
+                <RTCView
+                  style={styles.localVideoView}
+                  streamURL={remoteStreamRef.current.toURL()}
+                  objectFit="cover"
+                  mirror={false}
+                  zOrder={1}
+                />
+                <View style={styles.smallVideoIndicator}>
+                  <Text style={styles.smallVideoIndicatorText}>Stranger</Text>
+                </View>
+              </>
             ) : (
-              <View style={styles.videoPlaceholder}>
-                <View style={styles.placeholderBackground} />
-                <>
-                  <Ionicons name="videocam" size={48} color="#FF6B6B" />
-                  <Text style={styles.placeholderText}>Your Video</Text>
-                </>
-              </View>
-            )
-          ) : // Show remote video in main area (default)
-          remoteStreamRef.current ? (
-            isRemoteCameraOn ? (
-              <RTCView
-                style={styles.remoteVideoView}
-                streamURL={remoteStreamRef.current.toURL()}
-                objectFit="cover"
-                mirror={false}
-              />
-            ) : (
-              <View style={styles.noVideoContainer}>
-                <View style={styles.placeholderBackground} />
-                <Ionicons name="videocam-off" size={60} color="#6b7280" />
-                <Text style={styles.noVideoText}>Stranger turned off camera</Text>
-              </View>
+              <>
+                <View style={[styles.localVideoView, styles.noVideoSmallContainer]}>
+                  <Ionicons name="videocam-off" size={20} color="#6b7280" />
+                </View>
+                <View style={styles.smallVideoIndicator}>
+                  <Text style={styles.smallVideoIndicatorText}>Stranger</Text>
+                </View>
+              </>
             )
           ) : (
-            <View style={styles.videoPlaceholder}>
-              <View style={styles.placeholderBackground} />
-              {isSearching ? (
-                <>
-                  <ActivityIndicator size="large" color="#FF6B6B" />
-                  <Text style={styles.searchingVideoText}>Searching for a match...</Text>
-                </>
-              ) : connectionStatus === "matched" ? (
-                <>
-                  <ActivityIndicator size="large" color="#FF6B6B" />
-                  <Text style={styles.searchingVideoText}>Connecting...</Text>
-                </>
-              ) : (
-                <>
-                  <Ionicons name="videocam-outline" size={64} color="#64748B" />
-                  <Text style={styles.placeholderText}>
-                    {connectionStatus === "connecting"
-                      ? "Connecting to server..."
-                      : connectionStatus === "disconnected" && !shouldAutoConnect
-                        ? "Press CONNECT to start"
-                        : connectionStatus === "disconnected" && shouldAutoConnect
-                          ? "Connecting automatically..."
-                          : connectionStatus === "connected"
-                            ? "Press START VIDEO to search"
-                            : "Waiting for stranger..."}
-                  </Text>
-                </>
-              )}
-            </View>
-          )}
-        </View>
-
-        {/* Small Video (Local or Remote based on toggle) */}
-        <Animated.View
-          style={[
-            styles.localVideo,
-            {
-              transform: localVideoPosition.getTranslateTransform(),
-            },
-          ]}
-          {...panResponder.panHandlers}
-        >
-          <TouchableWithoutFeedback onPress={handleLocalVideoTouch}>
-            <View style={styles.localVideoTouchArea}>
-              {isLocalVideoLarge ? (
-                // Show remote video in small area when toggled
-                remoteStreamRef.current ? (
-                  isRemoteCameraOn ? (
+            // Show local video in small area (default)
+            localStreamRef.current && isCameraOn ? (
+              <>
+                <RTCView
+                  key={`local-small-${videoKey}`}
+                  style={styles.localVideoView}
+                  streamURL={localStreamRef.current.toURL()}
+                  objectFit="cover"
+                  mirror={cameraFacing === "user"} 
+                  zOrder={1}
+                />
+                <View style={styles.smallVideoIndicator}>
+                  <Text style={styles.smallVideoIndicatorText}>You</Text>
+                </View>
+              </>
+            ) : (
+              <View style={styles.localVideoPlaceholder}>
+                {isCameraOn ? (
+                  localStreamRef.current ? (
                     <>
-                      <RTCView
-                        style={styles.localVideoView}
-                        streamURL={remoteStreamRef.current.toURL()}
-                        objectFit="cover"
-                        mirror={false}
-                        zOrder={1}
-                      />
-                      <View style={styles.smallVideoIndicator}>
-                        <Text style={styles.smallVideoIndicatorText}>Stranger</Text>
-                      </View>
+                      <Ionicons name="videocam" size={20} color="#FF6B6B" />
+                      <Text style={styles.selfText}>You</Text>
                     </>
                   ) : (
                     <>
-                      <View style={[styles.localVideoView, styles.noVideoSmallContainer]}>
-                        <Ionicons name="videocam-off" size={20} color="#6b7280" />
-                      </View>
-                      <View style={styles.smallVideoIndicator}>
-                        <Text style={styles.smallVideoIndicatorText}>Stranger</Text>
-                      </View>
+                      <Ionicons name="videocam" size={20} color="#FF6B6B" />
+                      <Text style={styles.selfText}>You</Text>
                     </>
                   )
                 ) : (
-                  <View style={styles.localVideoPlaceholder}>
-                    <Ionicons name="person" size={24} color="#9CA3AF" />
-                    <Text style={styles.selfTextOff}>Stranger</Text>
-                  </View>
-                )
-              ) : // Show local video in small area (default)
-              localStreamRef.current && isCameraOn ? (
-                <>
-                  <RTCView
-                    key={`local-small-${videoKey}`}
-                    style={styles.localVideoView}
-                    streamURL={localStreamRef.current.toURL()}
-                    objectFit="cover"
-                    mirror={true}
-                    zOrder={1}
-                  />
-                  <View style={styles.smallVideoIndicator}>
-                    <Text style={styles.smallVideoIndicatorText}>You</Text>
-                  </View>
-                </>
-              ) : (
-                <View style={styles.localVideoPlaceholder}>
-                  {isCameraOn ? (
-                    localStreamRef.current ? (
-                      <>
-                        <Ionicons name="videocam" size={20} color="#FF6B6B" />
-                        <Text style={styles.selfText}>You</Text>
-                      </>
-                    ) : (
-                      <>
-                        <Ionicons name="videocam" size={20} color="#FF6B6B" />
-                        <Text style={styles.selfText}>You</Text>
-                      </>
-                    )
-                  ) : (
-                    <>
-                      <Ionicons name="videocam-off" size={20} color="#9CA3AF" />
-                      <Text style={styles.selfTextOff}>Camera Off</Text>
-                    </>
-                  )}
-                </View>
-              )}
-            </View>
-          </TouchableWithoutFeedback>
-        </Animated.View>
-
-        {/* Call Duration Display */}
-        {isInCall && (
-          <View style={styles.callDurationContainer}>
-            <Text style={styles.callDurationText}>{formatCallDuration(callDuration)}</Text>
-          </View>
-        )}
-
-        {/* In-Call Controls */}
-        <View style={styles.inCallControlContainer}>
-          <View style={styles.controlPanel}>
-            {/* Camera Toggle */}
-            <TouchableOpacity
-              style={[styles.controlButton, styles.roundButton]}
-              onPress={toggleCamera}
-              activeOpacity={0.8}
-            >
-              <Ionicons name={isCameraOn ? "videocam" : "videocam-off"} size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-
-            {/* Mic Toggle */}
-            <TouchableOpacity
-              style={[styles.controlButton, styles.roundButton]}
-              onPress={toggleMic}
-              activeOpacity={0.8}
-            >
-              <Ionicons name={isMicOn ? "mic" : "mic-off"} size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-
-            {/* Camera Flip Button - Only show when camera is on */}
-            {isCameraOn && (
-              <TouchableOpacity
-                style={[styles.controlButton, styles.roundButton]}
-                onPress={flipCamera}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="camera-reverse" size={24} color="#FFFFFF" />
-              </TouchableOpacity>
-            )}
-
-            {/* End Call Button */}
-            <TouchableOpacity
-              style={[styles.controlButton, styles.endCallButton]}
-              onPress={handleDisconnect}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="call" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
+                  <>
+                    <Ionicons name="videocam-off" size={20} color="#9CA3AF" />
+                    <Text style={styles.selfTextOff}>Camera Off</Text>
+                  </>
+                )}
+              </View>
+            )
+          )}
         </View>
+      </TouchableWithoutFeedback>
+    </Animated.View>
+
+    {/* Call Duration Display */}
+    {isInCall && (
+      <View style={styles.callDurationContainer}>
+        <Text style={styles.callDurationText}>{formatCallDuration(callDuration)}</Text>
       </View>
-    )
+    )}
+
+    {/* In-Call Controls */}
+    <View style={styles.inCallControlContainer}>
+      <View style={styles.controlPanel}>
+        {/* Camera Toggle */}
+        <TouchableOpacity
+          style={[styles.controlButton, styles.roundButton, !isCameraOn && styles.disabledButton]}
+          onPress={toggleCamera}
+          activeOpacity={0.8}
+        >
+          <Ionicons name={isCameraOn ? "videocam" : "videocam-off"} size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+
+        {/* Mic Toggle */}
+        <TouchableOpacity
+          style={[styles.controlButton, styles.roundButton, !isMicOn && styles.disabledButton]}
+          onPress={toggleMic}
+          activeOpacity={0.8}
+        >
+          <Ionicons name={isMicOn ? "mic" : "mic-off"} size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.cameraControlButton, styles.cameraControlActive]} onPress={flipCamera}>
+              <Ionicons name="camera-reverse" size={20} color="#FFFFFF" />
+        </TouchableOpacity>
+
+        {/* Skip Button - Main action for random chat */}
+        <TouchableOpacity
+          style={[styles.controlButton, styles.skipButton]}
+          onPress={handleSkip}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="play-skip-forward" size={28} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  </View>
+)
 
     return (
       <View style={styles.container}>
@@ -2273,10 +2383,23 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
   },
+ 
   roundButton: {
     backgroundColor: "rgba(0, 0, 0, 0.9)",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.3)",
+  },
+  disabledButton: {
+    backgroundColor: "rgba(220, 38, 38, 0.7)",
+    borderColor: "rgba(239, 68, 68, 0.5)",
+  },
+  skipButton: {
+    backgroundColor: "rgba(139, 92, 246, 0.9)", // Purple color for skip
+    borderWidth: 1,
+    borderColor: "rgba(167, 139, 250,  0.7)",
+    width: 64, // Slightly larger for emphasis
+    height: 64,
+    borderRadius: 32,
   },
   endCallButton: {
     backgroundColor: "rgba(220, 38, 38, 0.9)",
@@ -2296,3 +2419,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 })
+    
+

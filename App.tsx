@@ -12,6 +12,7 @@ import {ChatScreenContainer} from './src/screens/ChatScreenContainer';
 import {SettingsScreen} from './src/screens/SettingsScreen';
 import {AboutScreen} from './src/screens/AboutScreen';
 import {SupportFeedbackScreen} from './src/screens/SupportFeedBackScreen';
+import {ChatModeSelectionScreen, TextChatScreenContainer, VideoChatScreenContainer} from './src/screens';
 import {ChatProvider} from './src/contexts/ChatContext';
 import messaging from '@react-native-firebase/messaging';
 import notifee from '@notifee/react-native';
@@ -83,6 +84,9 @@ const App = () => {
                   headerShown: false,
                   cardStyle: {backgroundColor: '#064E3B'},
                 }}>
+                <Stack.Screen name="ChatModeSelection" component={ChatModeSelectionScreen} />
+                <Stack.Screen name="TextChat" component={TextChatScreenContainer} />
+                <Stack.Screen name="VideoChat" component={VideoChatScreenContainer} />
                 <Stack.Screen name="Main" component={TabNavigator} />
                 <Stack.Screen 
                   name="Chat" 
