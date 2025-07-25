@@ -1,3 +1,5 @@
+"use client"
+
 import React from "react"
 import { View, Text, StyleSheet, FlatList } from "react-native"
 import type { Message } from "../../types"
@@ -43,24 +45,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isTyping }) =>
     }
 
     return (
-      <View
-        style={[
-          styles.messageContainer,
-          isUser ? styles.userMessageContainer : styles.strangerMessageContainer,
-        ]}
-      >
-        <View
-          style={[
-            styles.messageBubble,
-            isUser ? styles.userMessageBubble : styles.strangerMessageBubble,
-          ]}
-        >
-          <Text
-            style={[
-              styles.messageText,
-              isUser ? styles.userMessageText : styles.strangerMessageText,
-            ]}
-          >
+      <View style={[styles.messageContainer, isUser ? styles.userMessageContainer : styles.strangerMessageContainer]}>
+        <View style={[styles.messageBubble, isUser ? styles.userMessageBubble : styles.strangerMessageBubble]}>
+          <Text style={[styles.messageText, isUser ? styles.userMessageText : styles.strangerMessageText]}>
             {item.text}
           </Text>
           <Text style={styles.timestamp}>
@@ -117,14 +104,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isTyping }) =>
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0F172A",
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(52, 211, 153, 0.15)",
+    backgroundColor: "transparent", // Set to transparent to allow ChatScreen's background
+    elevation: 0, // Removed elevation/shadow as background is handled by parent
+    shadowColor: "transparent",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    borderWidth: 0,
+    borderColor: "transparent",
   },
   emptyContainer: {
     flex: 1,
@@ -155,28 +142,24 @@ const styles = StyleSheet.create({
   },
   messageBubble: {
     maxWidth: "75%",
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
+    borderRadius: 15, // Adjusted to match image
+    paddingHorizontal: 15, // Adjusted to match image
+    paddingVertical: 10, // Adjusted to match image
+    elevation: 0, // Removed elevation/shadow
+    shadowColor: "transparent",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
   },
   userMessageBubble: {
-    backgroundColor: "#10B981",
-    borderBottomRightRadius: 6,
-    shadowColor: "#10B981",
-    shadowOpacity: 0.3,
+    backgroundColor: "#8B5CF6", // Purple for user messages
+    borderBottomRightRadius: 15, // Keep consistent with borderRadius
   },
   strangerMessageBubble: {
-    backgroundColor: "#334155",
-    borderBottomLeftRadius: 6,
-    borderWidth: 1,
-    borderColor: "rgba(52, 211, 153, 0.2)",
-    shadowColor: "#334155",
-    shadowOpacity: 0.2,
+    backgroundColor: "#374151", // Dark grey for stranger messages
+    borderBottomLeftRadius: 15, // Keep consistent with borderRadius
+    borderWidth: 0, // Removed border
+    borderColor: "transparent",
   },
   messageText: {
     fontSize: 15,
@@ -203,16 +186,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   systemMessageText: {
-    color: "#F1F5F9",
-    fontSize: 16,
-    fontWeight: "700",
+    color: "#A0A0B8", // Lighter grey for system messages
+    fontSize: 15, // Adjusted font size
+    fontWeight: "500", // Adjusted font weight
     textAlign: "center",
-    backgroundColor: "#334155",
+    backgroundColor: "rgba(255, 255, 255, 0.1)", // Transparent background
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 25,
-    borderWidth: 1,
-    borderColor: "rgba(52, 211, 153, 0.3)",
+    borderRadius: 20, // Adjusted border radius
+    borderWidth: 0, // Removed border
+    borderColor: "transparent",
   },
   typingContainer: {
     paddingHorizontal: 8,
@@ -220,22 +203,22 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   typingBubble: {
-    backgroundColor: "#475569",
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderBottomLeftRadius: 6,
-    borderWidth: 1,
-    borderColor: "rgba(52, 211, 153, 0.2)",
-    elevation: 2,
-    shadowColor: "#475569",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
+    backgroundColor: "rgba(255, 255, 255, 0.1)", // Dark transparent
+    borderRadius: 15, // Adjusted
+    paddingHorizontal: 15, // Adjusted
+    paddingVertical: 10, // Adjusted
+    borderBottomLeftRadius: 15, // Adjusted
+    borderWidth: 0, // Removed border
+    borderColor: "transparent",
+    elevation: 0, // Removed elevation/shadow
+    shadowColor: "transparent",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
   },
   typingText: {
     fontStyle: "italic",
-    color: "#6EE7B7",
+    color: "#A0A0B8", // Adjusted color
     fontSize: 12,
     fontWeight: "500",
   },

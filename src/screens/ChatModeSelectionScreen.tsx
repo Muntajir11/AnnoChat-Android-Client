@@ -346,7 +346,7 @@ export const ChatModeSelectionScreen: React.FC<ChatModeSelectionScreenProps> = (
             <View style={styles.optionContent}>
               <View style={styles.optionLeft}>
                 <View style={styles.videoIconContainer}>
-                  <Ionicons name="videocam" size={24} color="#FF6B6B" />
+                  <Ionicons name="videocam" size={24} color="#4CAF50" />
                 </View>
                 <View>
                   <Text style={styles.optionTitle}>Video</Text>
@@ -359,7 +359,7 @@ export const ChatModeSelectionScreen: React.FC<ChatModeSelectionScreenProps> = (
                   <View style={styles.statusDotVideo} />
                   <Text style={styles.statusNumber}>{Math.round(videoUsers/1000)}k</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#FF6B6B" />
+                <Ionicons name="chevron-forward" size={18} color="#4CAF50" />
               </View>
             </View>
           </TouchableOpacity>
@@ -579,11 +579,11 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(255, 107, 107, 0.15)',
+    backgroundColor: 'rgba(76, 175, 80, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 107, 107, 0.3)',
+    borderColor: 'rgba(76, 175, 80, 0.3)',
   },
   optionTitle: {
     fontSize: 20,

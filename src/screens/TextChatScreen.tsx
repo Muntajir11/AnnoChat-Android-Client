@@ -1,5 +1,3 @@
-"use client"
-
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions, Animated, Easing } from "react-native"
@@ -29,7 +27,7 @@ export const TextChatScreen: React.FC<TextChatScreenProps> = ({ navigation, onMe
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const presenceWsRef = useRef<WebSocket | null>(null)
   const presenceConnectingRef = useRef(false)
-
+  const [shouldAutoSearch, setShouldAutoSearch] = useState(false)
   // Animation refs
   const pulseAnim = useRef(new Animated.Value(1)).current
   const rotateAnim = useRef(new Animated.Value(0)).current
@@ -51,37 +49,41 @@ export const TextChatScreen: React.FC<TextChatScreenProps> = ({ navigation, onMe
     setOnSendMessage,
     setOnDisconnect,
     setOnChangeText,
+    disconnectWithAutoSearch,
+    disconnectWithoutAutoSearch,
+    setDisconnectWithAutoSearch,
+    setDisconnectWithoutAutoSearch,
   } = useChatContext()
 
   const [isConnected, setIsConnected] = useState(false)
 
 
-  useEffect(() => {
-    const onBackPress = () => {
-      if (roomId) { // Only intercept if user is in a room
-        Alert.alert(
-          "Leave Chat?",
-          "Are you sure you want to leave the chat?",
-          [
-            { text: "Cancel", style: "cancel" },
-            { text: "Leave", style: "destructive", onPress: () => {
-                leaveRoom();
-                navigation.goBack();
-              }
-            }
-          ]
-        );
-        return true; // Prevent default back navigation
-      }
-      return false; // Allow default navigation if not in a room
-    };
+  // useEffect(() => {
+  //   const onBackPress = () => {
+  //     if (roomId) { // Only intercept if user is in a room
+  //       Alert.alert(
+  //         "Leave Chat?",
+  //         "Are you sure you want to leave the chat?",
+  //         [
+  //           { text: "Cancel", style: "cancel" },
+  //           { text: "Leave", style: "destructive", onPress: () => {
+  //               leaveRoom();
+  //               navigation.goBack();
+  //             }
+  //           }
+  //         ]
+  //       );
+  //       return true; // Prevent default back navigation
+  //     }
+  //     return false; // Allow default navigation if not in a room
+  //   };
 
-    BackHandler.addEventListener("hardwareBackPress", onBackPress);
+  //   BackHandler.addEventListener("hardwareBackPress", onBackPress);
 
-    return () => {
-      BackHandler.removeEventListener("hardwareBackPress", onBackPress);
-    };
-  }, [roomId]);
+  //   return () => {
+  //     BackHandler.removeEventListener("hardwareBackPress", onBackPress);
+  //   };
+  // }, [roomId]);
 
   // Start animations on mount
   useEffect(() => {
@@ -217,6 +219,7 @@ export const TextChatScreen: React.FC<TextChatScreenProps> = ({ navigation, onMe
   }, [authToken])
 
   useEffect(() => {
+
     setOnSendMessage(() => (text: string) => {
       if (!text.trim() || !roomId || strangerLeft) return
       setMessages((m) => [
@@ -248,7 +251,20 @@ export const TextChatScreen: React.FC<TextChatScreenProps> = ({ navigation, onMe
 
     setOnDisconnect(() => () => {
       leaveRoom()
-      // navigation.goBack()
+      setShouldAutoSearch(true)
+      navigation.goBack()
+    })
+
+    // Provide disconnect functions for skip and back button
+    setDisconnectWithAutoSearch(() => () => {
+      leaveRoom()
+      setShouldAutoSearch(true)
+      navigation.goBack()
+    })
+
+    setDisconnectWithoutAutoSearch(() => () => {
+      leaveRoom()
+      navigation.goBack()
     })
 
     setOnChangeText(() => (txt: string) => {
@@ -273,7 +289,7 @@ export const TextChatScreen: React.FC<TextChatScreenProps> = ({ navigation, onMe
         typingTimeoutRef.current = null
       }, 1500)
     })
-  }, [roomId, strangerLeft, setMessages, setOnSendMessage, setOnDisconnect, setOnChangeText])
+  }, [roomId, strangerLeft, setMessages, setOnSendMessage, setOnDisconnect, setOnChangeText, setDisconnectWithAutoSearch, setDisconnectWithoutAutoSearch])
 
   useEffect(() => {
     if (isConnected) {
@@ -439,6 +455,14 @@ export const TextChatScreen: React.FC<TextChatScreenProps> = ({ navigation, onMe
     inputRange: [0, 1],
     outputRange: ["0deg", "360deg"],
   })
+
+
+  useEffect(() => {
+  if (shouldAutoSearch) {
+    setShouldAutoSearch(false)
+    handleFindChat()
+  }
+}, [shouldAutoSearch])
 
   return (
     <View style={styles.container}>

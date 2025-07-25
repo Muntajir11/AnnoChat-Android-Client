@@ -1,16 +1,19 @@
+"use client"
+
 import type React from "react"
+import { useChatContext } from "../contexts/ChatContext"
 import { useState } from "react"
 import { View, TextInput, TouchableOpacity, StyleSheet, Text } from "react-native"
 import Icon from "react-native-vector-icons/Ionicons"
 
 interface MessageInputProps {
   onSendMessage: (text: string) => void
-  onDisconnect: () => void
   onChangeText: (text: string) => void
 }
 
-export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, onDisconnect, onChangeText }) => {
+export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, onChangeText }) => {
   const [message, setMessage] = useState("")
+  const { disconnectWithAutoSearch } = useChatContext()
 
   const handleChangeText = (text: string) => {
     setMessage(text)
@@ -27,17 +30,15 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, onDis
 
   return (
     <View style={styles.container}>
-      
-      <TouchableOpacity style={styles.disconnectButton} onPress={onDisconnect} activeOpacity={0.7}>
-        <Icon name="log-out-outline" size={16} color="#F1F5F9" />
-        <Text style={styles.disconnectText}>End</Text>
+      <TouchableOpacity style={styles.disconnectButton} onPress={disconnectWithAutoSearch} activeOpacity={0.7}>
+        <Text style={styles.disconnectText}>Skip</Text>
       </TouchableOpacity>
 
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.input}
-          placeholder="Type a message..."
-          placeholderTextColor="rgba(203, 213, 225, 0.5)"
+          placeholder="Type your message..."
+          placeholderTextColor="#A0A0B8"
           value={message}
           onChangeText={handleChangeText}
           multiline={true}
@@ -45,7 +46,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, onDis
           returnKeyType="send"
           onSubmitEditing={handleSend}
           blurOnSubmit={false}
-          textAlignVertical="top"
+          textAlignVertical="center"
           underlineColorAndroid="transparent"
           enablesReturnKeyAutomatically={true}
           autoCapitalize="sentences"
@@ -62,7 +63,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, onDis
         disabled={!message.trim()}
         activeOpacity={0.7}
       >
-        <Icon name="send" size={20} color="#F1F5F9" />
+        <Icon name="send" size={20} color="#FFFFFF" />
       </TouchableOpacity>
     </View>
   )
@@ -75,48 +76,47 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 12,
-    backgroundColor: "#0F172A",
+    backgroundColor: "rgba(15, 15, 35, 0.8)",
     borderTopWidth: 1,
-    borderTopColor: "rgba(52, 211, 153, 0.2)",
+    borderTopColor: "rgba(255, 255, 255, 0.1)",
   },
   disconnectButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 14,
-    height: 48,
-    marginRight: 12,
-    borderRadius: 24,
-    backgroundColor: "#475569",
+    paddingHorizontal: 15,
+    height: 45,
+    marginRight: 10,
+    borderRadius: 25,
+    backgroundColor: "rgba(255, 107, 107, 0.15)",
     borderWidth: 1,
-    borderColor: "rgba(203, 213, 225, 0.3)",
+    borderColor: "rgba(255, 107, 107, 0.3)",
   },
   disconnectText: {
-    color: "#F1F5F9",
+    color: "#FF6B6B",
     fontSize: 14,
-    fontWeight: "500",
-    marginLeft: 6,
+    fontWeight: "600",
   },
   inputContainer: {
     flex: 1,
-    backgroundColor: "#334155",
-    borderRadius: 24,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    marginRight: 12,
-    minHeight: 48,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderRadius: 25,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    marginRight: 10,
+    minHeight: 45,
     maxHeight: 120,
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(52, 211, 153, 0.2)",
-    elevation: 2,
-    shadowColor: "#334155",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
+    borderWidth: 0,
+    borderColor: "transparent",
+    elevation: 0,
+    shadowColor: "transparent",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
   },
   input: {
-    color: "#F1F5F9",
+    color: "#FFFFFF",
     fontSize: 16,
     lineHeight: 20,
     minHeight: 20,
@@ -124,24 +124,24 @@ const styles = StyleSheet.create({
     padding: 0,
     margin: 0,
     fontWeight: "400",
-    textAlignVertical: "top",
+    textAlignVertical: "center",
     includeFontPadding: false,
   },
   sendButton: {
-    backgroundColor: "#10B981",
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    backgroundColor: "#4ECDC4",
+    width: 45,
+    height: 45,
+    borderRadius: 25,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(52, 211, 153, 0.4)",
+    borderWidth: 0,
+    borderColor: "transparent",
   },
   sendButtonDisabled: {
-    backgroundColor: "#475569",
-    borderColor: "rgba(148, 163, 184, 0.3)",
-    shadowColor: "#475569",
-    shadowOpacity: 0.1,
+    backgroundColor: "rgba(78, 205, 196, 0.3)",
+    borderColor: "transparent",
+    shadowColor: "transparent",
+    shadowOpacity: 0,
     opacity: 0.6,
   },
 })
