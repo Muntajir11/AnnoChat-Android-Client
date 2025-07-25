@@ -7,6 +7,8 @@ import { Header } from "../components/Header"
 import { useChatContext } from "../contexts/ChatContext"
 import Ionicons from "react-native-vector-icons/Ionicons"
 import analytics from "@react-native-firebase/analytics"
+import { BackHandler, Alert } from "react-native";
+
 
 const SERVER_URL = "https://muntajir.me"
 const SOCKET_TOKEN_URL = "https://annochat.social/api/get-socket-token"
@@ -52,6 +54,34 @@ export const TextChatScreen: React.FC<TextChatScreenProps> = ({ navigation, onMe
   } = useChatContext()
 
   const [isConnected, setIsConnected] = useState(false)
+
+
+  useEffect(() => {
+    const onBackPress = () => {
+      if (roomId) { // Only intercept if user is in a room
+        Alert.alert(
+          "Leave Chat?",
+          "Are you sure you want to leave the chat?",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Leave", style: "destructive", onPress: () => {
+                leaveRoom();
+                navigation.goBack();
+              }
+            }
+          ]
+        );
+        return true; // Prevent default back navigation
+      }
+      return false; // Allow default navigation if not in a room
+    };
+
+    BackHandler.addEventListener("hardwareBackPress", onBackPress);
+
+    return () => {
+      BackHandler.removeEventListener("hardwareBackPress", onBackPress);
+    };
+  }, [roomId]);
 
   // Start animations on mount
   useEffect(() => {
@@ -218,7 +248,7 @@ export const TextChatScreen: React.FC<TextChatScreenProps> = ({ navigation, onMe
 
     setOnDisconnect(() => () => {
       leaveRoom()
-      navigation.goBack()
+      // navigation.goBack()
     })
 
     setOnChangeText(() => (txt: string) => {

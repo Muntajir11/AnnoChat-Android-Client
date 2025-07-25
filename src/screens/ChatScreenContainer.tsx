@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BackHandler, View } from 'react-native';
+import { BackHandler, View, Alert } from 'react-native';
 import { ChatScreen } from './ChatScreen';
 import { SideDrawer } from '../components/SideDrawer';
 import { useChatContext } from '../contexts/ChatContext';
 import type { Message } from '../../types';
+
 
 interface ChatScreenContainerProps {
   navigation: any;
@@ -30,18 +31,27 @@ export const ChatScreenContainer: React.FC<ChatScreenContainerProps> = ({ naviga
   };
 
   // Handle hardware back button on Android
-  useEffect(() => {
-    const backAction = () => {
-      if (onDisconnect) {
-        onDisconnect();
-      }
-      navigation.goBack();
-      return true; // Prevent default behavior
-    };
+useEffect(() => {
+  const backAction = () => {
+    // Show confirmation alert
+    Alert.alert(
+      "Leave Chat?",
+      "Are you sure you want to leave the chat?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Leave", style: "destructive", onPress: () => {
+            if (onDisconnect) onDisconnect();
+            navigation.goBack();
+          }
+        }
+      ]
+    );
+    return true; // Prevent default behavior
+  };
 
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
-    return () => backHandler.remove();
-  }, [onDisconnect, navigation]);
+  const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+  return () => backHandler.remove();
+}, [onDisconnect, navigation]);
 
   return (
     <View style={{ flex: 1, backgroundColor: 'white' }}>

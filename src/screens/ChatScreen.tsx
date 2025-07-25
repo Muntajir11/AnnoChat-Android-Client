@@ -5,6 +5,7 @@ import { ChatWindow } from '../components/ChatWindow';
 import { MessageInput } from '../components/MessageInput';
 import { Header } from '../components/Header';
 import type { Message } from '../../types';
+// import { BackHandler, Alert } from "react-native";
 
 interface ChatScreenProps {
   messages: Message[];
@@ -16,6 +17,8 @@ interface ChatScreenProps {
   onDisconnect: () => void;
   onChangeText: (text: string) => void;
 }
+
+
 
 export const ChatScreen: React.FC<ChatScreenProps> = ({
   messages,
@@ -29,6 +32,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 }) => {
   const insets = useSafeAreaInsets();
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
 
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
