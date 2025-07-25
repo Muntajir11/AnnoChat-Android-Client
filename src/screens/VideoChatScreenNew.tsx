@@ -255,9 +255,9 @@ const requestRemoteState = () => {
 
             const stream = await mediaDevices.getUserMedia({
               video: {
-                width: 1280,
-                height: 720,
-                frameRate: 30,
+                width: 640,
+                height: 480,
+                frameRate: 15,
                 facingMode: cameraFacing,
               },
               audio: false, // Only video for background preview
@@ -295,9 +295,9 @@ const requestRemoteState = () => {
 
               const stream = await mediaDevices.getUserMedia({
                 video: {
-                  width: 1280,
-                  height: 720,
-                  frameRate: 30,
+                   width: 640,
+                height: 480,
+                frameRate: 15,
                   facingMode: cameraFacing,
                 },
                 audio: false,
@@ -1103,9 +1103,9 @@ if (isInitiator) {
           console.log("Creating media stream with camera facing:", cameraFacing)
           const stream = await mediaDevices.getUserMedia({
             video: {
-              width: 1280,
-              height: 720,
-              frameRate: 30,
+              width: 640,
+              height: 480,
+              frameRate: 15,
               facingMode: cameraFacing,
             },
             audio: true,
@@ -1288,9 +1288,9 @@ if (isInitiator) {
           try {
             const newStream = await mediaDevices.getUserMedia({
               video: {
-                width: 1280,
-                height: 720,
-                frameRate: 30,
+                width: 640,
+                height: 480,
+                frameRate: 15,
                 facingMode: cameraFacing,
               },
               audio: false,
@@ -1367,9 +1367,9 @@ if (isInitiator) {
 
               const newVideoStream = await mediaDevices.getUserMedia({
                 video: {
-                  width: 1280,
-                  height: 720,
-                  frameRate: 30,
+                  width: 640,
+                  height: 480,
+                  frameRate: 15,
                   facingMode: cameraFacing,
                 },
                 audio: false,
@@ -1408,9 +1408,9 @@ if (isInitiator) {
 
             const stream = await mediaDevices.getUserMedia({
               video: {
-                width: 1280,
-                height: 720,
-                frameRate: 30,
+                width: 640,
+                height: 480,
+                frameRate: 15,
                 facingMode: cameraFacing,
               },
               audio: false,
@@ -1482,9 +1482,9 @@ if (isInitiator) {
 
         const newVideoStream = await mediaDevices.getUserMedia({
           video: {
-            width: 1280,
-            height: 720,
-            frameRate: 30,
+            width: 640,
+            height: 480,
+            frameRate: 15,
             facingMode: newFacing,
           },
           audio: false,
@@ -1523,9 +1523,9 @@ if (isInitiator) {
           console.log("Attempting to restore video track...")
           const restoreStream = await mediaDevices.getUserMedia({
             video: {
-              width: 1280,
-              height: 720,
-              frameRate: 30,
+              width: 640,
+              height: 480,
+              frameRate: 15,
               facingMode: cameraFacing,
             },
             audio: false,
@@ -1559,9 +1559,9 @@ if (isInitiator) {
       try {
         const newStream = await mediaDevices.getUserMedia({
           video: {
-            width: 1280,
-            height: 720,
-            frameRate: 30,
+            width: 640,
+            height: 480,
+            frameRate: 15,
             facingMode: cameraFacing,
           },
           audio: true,
@@ -2277,10 +2277,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 140,
     backgroundColor: "#000000",
-    borderRadius: 12,
     overflow: "hidden",
-    borderWidth: 2,
-    borderColor: "#FF6B6B",
     zIndex: 9999,
   },
   localVideoView: {
@@ -2306,7 +2303,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.7)",
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 4,
   },
   smallVideoIndicatorText: {
     color: "#FFFFFF",
