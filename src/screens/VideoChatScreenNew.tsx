@@ -999,71 +999,114 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       }
     }, [isInCall, connectionStatus, isProcessing, isSearching])
 
-    const handlePartnerLeft = () => {
-      setStatusMessage("Partner left the call")
-      setStatus("Ready")
-      setIsInCall(false)
-      setIsConnected(false)
-      setIsLocalVideoLarge(false)
-      setConnectionStatus("connected")
+ const handlePartnerLeft = async () => {
+  console.log("handlePartnerLeft: Starting cleanup...")
+  
+  setStatusMessage("Partner left the call")
+  setStatus("Ready")
+  setIsInCall(false)
+  setIsConnected(false)
+  setIsLocalVideoLarge(false)
+  setConnectionStatus("connected")
 
-      if (peerConnectionRef.current) {
-        peerConnectionRef.current.close()
-        peerConnectionRef.current = null
-      }
+  // Close peer connection
+  if (peerConnectionRef.current) {
+    peerConnectionRef.current.close()
+    peerConnectionRef.current = null
+  }
 
-      remoteStreamRef.current = null
+  // Stop and clean up local stream
+  if (localStreamRef.current) {
+    localStreamRef.current.getTracks().forEach((track) => {
+      console.log("Stopping track:", track.kind)
+      track.stop()
+    })
+    localStreamRef.current = null
+  }
 
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop())
-        localStreamRef.current = null
-      }
+  // Clean up remote stream
+  remoteStreamRef.current = null
 
-      setIsCameraOn(true)
-      setIsMicOn(true)
-      setIsProcessing(false)
-      setIsSearching(false)
-
-      setRoomId(null)
-      setPartnerId(null)
-      setRole(null)
-
-      // Remove auto-search logic from here, now handled by useEffect
-      shouldAutoSearchNextRef.current = shouldAutoSearchNextRef.current
+  if (isAudioSetup) {
+    try {
+      console.log("Restoring audio settings after partner left...")
+      await restoreAudioSettings()
+      console.log("Audio settings restored successfully")
+    } catch (error) {
+      console.error("Failed to restore audio settings:", error)
     }
+  }
 
-    const handleCallEnded = () => {
-      setStatusMessage("Call ended")
-      setStatus("Ready")
-      setIsInCall(false)
-      setIsConnected(false)
-      setIsLocalVideoLarge(false)
-      setConnectionStatus("connected")
+  // Reset media states
+  setIsCameraOn(true)
+  setIsMicOn(true)
+  setIsProcessing(false)
+  setIsSearching(false)
 
-      if (peerConnectionRef.current) {
-        peerConnectionRef.current.close()
-        peerConnectionRef.current = null
-      }
+  // Reset call states
+  setRoomId(null)
+  setPartnerId(null)
+  setRole(null)
+  
+  // Clear data channel
+  dataChannelRef.current = null
 
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop())
-        localStreamRef.current = null
-      }
+  console.log("handlePartnerLeft: Cleanup completed")
+}
+  const handleCallEnded = async () => {
+  console.log("handleCallEnded: Starting call cleanup...")
+  
+  setStatusMessage("Call ended")
+  setStatus("Ready")
+  setIsInCall(false)
+  setIsConnected(false)
+  setIsLocalVideoLarge(false)
+  setConnectionStatus("connected")
 
-      remoteStreamRef.current = null
+  // Close peer connection
+  if (peerConnectionRef.current) {
+    peerConnectionRef.current.close()
+    peerConnectionRef.current = null
+  }
 
-      setIsCameraOn(true)
-      setIsMicOn(true)
-      setIsProcessing(false)
-      setIsSearching(false)
+  // Stop and clean up local stream
+  if (localStreamRef.current) {
+    localStreamRef.current.getTracks().forEach((track) => {
+      console.log("Stopping track:", track.kind)
+      track.stop()
+    })
+    localStreamRef.current = null
+  }
 
-      setRoomId(null)
-      setPartnerId(null)
-      setRole(null)
+  // Clean up remote stream
+  remoteStreamRef.current = null
 
-      // Remove auto-search logic from here, now handled by useEffect
-      shouldAutoSearchNextRef.current = shouldAutoSearchNextRef.current
+  if (isAudioSetup) {
+    try {
+      console.log("Restoring audio settings after call ended...")
+      await restoreAudioSettings()
+      console.log("Audio settings restored successfully")
+    } catch (error) {
+      console.error("Failed to restore audio settings:", error)
     }
+  }
+
+  // Reset media states
+  setIsCameraOn(true)
+  setIsMicOn(true)
+  setIsProcessing(false)
+  setIsSearching(false)
+
+  // Reset call states
+  setRoomId(null)
+  setPartnerId(null)
+  setRole(null)
+  
+  // Clear data channel
+  dataChannelRef.current = null
+
+  console.log("handleCallEnded: Cleanup completed")
+}
 
     const handleConnectToServer = async () => {
       if (isButtonDisabled) return
@@ -1084,117 +1127,133 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
     }
 
     const findMatch = async () => {
-      if (!wsRef.current || connectionStatus !== "connected" || isProcessing) {
-        if (connectionStatus !== "connected") {
-          setError("Please connect to the server first")
-        } else if (isProcessing) {
-          setError("Please wait, processing your request...")
-        }
-        return
-      }
-
-      setIsProcessing(true)
-      setError("")
-
-      try {
-        // Check if we already have a video stream from background preview
-        const hasExistingVideoStream =
-          localStreamRef.current &&
-          localStreamRef.current.getVideoTracks().length > 0 &&
-          localStreamRef.current.getVideoTracks()[0].readyState !== "ended"
-
-        if (hasExistingVideoStream) {
-          console.log("Reusing existing background camera stream, just adding audio...")
-
-          // We have a good video stream, just need to add audio
-          try {
-            const audioStream = await mediaDevices.getUserMedia({
-              audio: true,
-              video: false,
-            })
-
-            const audioTrack = audioStream.getAudioTracks()[0]
-            if (audioTrack && localStreamRef.current) {
-              audioTrack.enabled = isMicOn
-              localStreamRef.current.addTrack(audioTrack)
-              console.log("Added audio track to existing video stream")
-            }
-          } catch (audioError) {
-            console.warn("Failed to add audio track, continuing with video only:", audioError)
-          }
-        } else {
-          console.log("No existing video stream, creating new media stream...")
-
-          // Clean up any existing stream
-          if (localStreamRef.current) {
-            console.log("Cleaning up existing stream before creating new one")
-            localStreamRef.current.getTracks().forEach((track) => track.stop())
-            localStreamRef.current = null
-          }
-
-          console.log("Creating media stream with camera facing:", cameraFacing)
-          const stream = await mediaDevices.getUserMedia({
-            video: {
-              width: 640,
-              height: 480,
-              frameRate: 15,
-              facingMode: cameraFacing,
-            },
-            audio: true,
-          })
-
-          localStreamRef.current = stream
-          console.log("Media stream created successfully")
-        }
-
-        const hasPermissions = await requestCameraAndMicrophonePermissions()
-        if (!hasPermissions) {
-          setIsProcessing(false)
-          return
-        }
-
-        console.log("Setting up audio routing...")
-        const audioSetupSuccess = await setupAudioForVideoCall()
-        if (audioSetupSuccess) {
-          console.log("Audio setup successful, current device:", currentDevice)
-        } else {
-          console.warn("Audio setup failed, continuing with default settings")
-        }
-
-        // Ensure tracks are enabled according to current settings
-        const videoTrack = localStreamRef.current?.getVideoTracks()[0]
-        const audioTrack = localStreamRef.current?.getAudioTracks()[0]
-
-        if (videoTrack) {
-          videoTrack.enabled = isCameraOn
-          console.log("Video track enabled:", isCameraOn)
-        }
-
-        if (audioTrack) {
-          audioTrack.enabled = isMicOn
-          console.log("Audio track enabled:", isMicOn)
-        }
-
-        wsRef.current.send(JSON.stringify({ event: "find-match" }))
-
-        setConnectionStatus("searching")
-        setStatusMessage("Getting ready...")
-        setStatus("Getting ready...")
-      } catch (error) {
-        console.error("Error accessing media devices:", error)
-        setError("Unable to access camera/microphone. Please grant permissions and try again.")
-        setIsProcessing(false)
-
-        if (localStreamRef.current) {
-          localStreamRef.current.getTracks().forEach((track) => track.stop())
-          localStreamRef.current = null
-        }
-
-        Alert.alert("Permission Required", "Please grant camera and microphone permissions to use video chat.", [
-          { text: "OK" },
-        ])
-      }
+  if (!wsRef.current || connectionStatus !== "connected" || isProcessing) {
+    if (connectionStatus !== "connected") {
+      setError("Please connect to the server first")
+    } else if (isProcessing) {
+      setError("Please wait, processing your request...")
     }
+    return
+  }
+
+  setIsProcessing(true)
+  setError("")
+
+  try {
+    // **IMPORTANT: Add small delay to ensure audio cleanup is complete**
+    // This prevents audio conflicts when auto-searching after skip
+    if (shouldAutoSearchNextRef.current) {
+      console.log("Auto-search detected, adding delay for audio cleanup...")
+      await new Promise(resolve => setTimeout(resolve, 500))
+    }
+
+    // Check permissions first
+    const hasPermissions = await requestCameraAndMicrophonePermissions()
+    if (!hasPermissions) {
+      setIsProcessing(false)
+      return
+    }
+
+    // Check if we already have a video stream from background preview
+    const hasExistingVideoStream =
+      localStreamRef.current &&
+      localStreamRef.current.getVideoTracks().length > 0 &&
+      localStreamRef.current.getVideoTracks()[0].readyState !== "ended"
+
+    if (hasExistingVideoStream) {
+      console.log("Reusing existing background camera stream, just adding audio...")
+
+      // We have a good video stream, just need to add audio
+      try {
+        const audioStream = await mediaDevices.getUserMedia({
+          audio: true,
+          video: false,
+        })
+
+        const audioTrack = audioStream.getAudioTracks()[0]
+        if (audioTrack && localStreamRef.current) {
+          audioTrack.enabled = isMicOn
+          localStreamRef.current.addTrack(audioTrack)
+          console.log("Added audio track to existing video stream")
+        }
+      } catch (audioError) {
+        console.warn("Failed to add audio track, continuing with video only:", audioError)
+      }
+    } else {
+      console.log("No existing video stream, creating new media stream...")
+
+      // Clean up any existing stream
+      if (localStreamRef.current) {
+        console.log("Cleaning up existing stream before creating new one")
+        localStreamRef.current.getTracks().forEach((track) => track.stop())
+        localStreamRef.current = null
+      }
+
+      console.log("Creating media stream with camera facing:", cameraFacing)
+      const stream = await mediaDevices.getUserMedia({
+        video: {
+          width: 640,
+          height: 480,
+          frameRate: 15,
+          facingMode: cameraFacing,
+        },
+        audio: true,
+      })
+
+      localStreamRef.current = stream
+      console.log("Media stream created successfully")
+    }
+
+    // **CRITICAL: Setup audio routing with better error handling**
+    console.log("Setting up audio routing...")
+    try {
+      const audioSetupSuccess = await setupAudioForVideoCall()
+      if (audioSetupSuccess) {
+        console.log("Audio setup successful, current device:", currentDevice)
+      } else {
+        console.warn("Audio setup failed, continuing with default settings")
+      }
+    } catch (audioError) {
+      console.error("Audio setup error:", audioError)
+      // Continue with call setup even if audio routing fails
+    }
+
+    // Ensure tracks are enabled according to current settings
+    const videoTrack = localStreamRef.current?.getVideoTracks()[0]
+    const audioTrack = localStreamRef.current?.getAudioTracks()[0]
+
+    if (videoTrack) {
+      videoTrack.enabled = isCameraOn
+      console.log("Video track enabled:", isCameraOn)
+    }
+
+    if (audioTrack) {
+      audioTrack.enabled = isMicOn
+      console.log("Audio track enabled:", isMicOn)
+    }
+
+    // Send find match request
+    wsRef.current.send(JSON.stringify({ event: "find-match" }))
+
+    setConnectionStatus("searching")
+    setStatusMessage("Getting ready...")
+    setStatus("Getting ready...")
+    
+  } catch (error) {
+    console.error("Error accessing media devices:", error)
+    setError("Unable to access camera/microphone. Please grant permissions and try again.")
+    setIsProcessing(false)
+
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => track.stop())
+      localStreamRef.current = null
+    }
+
+    Alert.alert("Permission Required", "Please grant camera and microphone permissions to use video chat.", [
+      { text: "OK" },
+    ])
+  }
+}
 
     const handleCancelSearch = () => {
       if (isButtonDisabled) return
