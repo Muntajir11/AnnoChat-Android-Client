@@ -27,7 +27,7 @@ import {
 } from "react-native-webrtc"
 import config, { ICE_SERVERS } from "../config/config"
 import { requestCameraAndMicrophonePermissions } from "../utils/permissions"
-import { getVideoToken } from "../utils/videoToken"
+import { getVideoToken, hasCachedToken } from "../utils/videoToken"
 import { useAudioManager } from "../utils/useAudioManager"
 import KeepAwake from "react-native-keep-awake"
 import type RTCDataChannel from "react-native-webrtc/lib/typescript/RTCDataChannel"
@@ -39,6 +39,13 @@ const WEBSOCKET_URL = config.videoUrl
 
 type ConnectionStatus = "disconnected" | "connecting" | "connected" | "searching" | "matched" | "in-call"
 
+// Add connection cache interface
+interface CachedConnection {
+  ws: WebSocket;
+  establishedAt: number;
+  isValid: boolean;
+}
+
 export interface VideoChatScreenRef {
   disconnect: () => void
   reconnect: () => void
@@ -48,11 +55,10 @@ interface VideoChatScreenProps {
   onMenuPress?: () => void
   onChatStatusChange?: (isConnected: boolean) => void
   shouldAutoConnect?: boolean
-  shouldDisconnectOnTabSwitch?: boolean
 }
 
 export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenProps>(
-  ({ onMenuPress, onChatStatusChange, shouldAutoConnect = false, shouldDisconnectOnTabSwitch = false }, ref) => {
+  ({ onMenuPress, onChatStatusChange, shouldAutoConnect = false }, ref) => {
     // Audio management hook
     const {
       currentDevice,
@@ -84,6 +90,10 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
     const dataChannelRef = useRef<RTCDataChannel | null>(null)
     const [videoKey, setVideoKey] = useState(0)
 
+    // Connection caching refs
+    const cachedConnectionRef = useRef<CachedConnection | null>(null)
+    const connectionAttemptRef = useRef<Promise<void> | null>(null)
+
     // Animation refs
     const pulseAnim = useRef(new Animated.Value(1)).current
     const rotateAnim = useRef(new Animated.Value(0)).current
@@ -111,6 +121,67 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
 
     // Ref to track if skip was pressed and we should auto-search after disconnect
     const shouldAutoSearchNextRef = useRef(false)
+
+    // Connection validation and caching functions
+    const isConnectionValid = (connection: CachedConnection | null): connection is CachedConnection => {
+      if (!connection) return false;
+      
+      const now = Date.now();
+      const maxAge = 30 * 60 * 1000; // 30 minutes
+      const age = now - connection.establishedAt;
+      
+      const isValid = 
+        connection.isValid && 
+        connection.ws && 
+        connection.ws.readyState === WebSocket.OPEN && 
+        age < maxAge;
+        
+      if (!isValid && connection.ws) {
+        console.log('🔄 Connection invalid:', {
+          isValid: connection.isValid,
+          readyState: connection.ws.readyState,
+          ageMinutes: Math.round(age / 60000),
+          maxAgeMinutes: Math.round(maxAge / 60000)
+        });
+      }
+      
+      return isValid;
+    };
+
+    const getCachedConnection = (): WebSocket | null => {
+      const cached = cachedConnectionRef.current;
+      if (isConnectionValid(cached)) {
+        console.log('✅ Using cached WebSocket connection');
+        return cached.ws;
+      }
+      
+      // Clear invalid cache
+      if (cached) {
+        console.log('🗑️ Clearing invalid connection cache');
+        if (cached.ws && cached.ws.readyState !== WebSocket.CLOSED) {
+          cached.ws.close();
+        }
+        cachedConnectionRef.current = null;
+      }
+      
+      return null;
+    };
+
+    const cacheConnection = (ws: WebSocket) => {
+      cachedConnectionRef.current = {
+        ws,
+        establishedAt: Date.now(),
+        isValid: true
+      };
+      console.log('💾 WebSocket connection cached');
+    };
+
+    const invalidateConnectionCache = () => {
+      if (cachedConnectionRef.current) {
+        cachedConnectionRef.current.isValid = false;
+        console.log('❌ Connection cache invalidated');
+      }
+    };
 
     const sendDataChannelMessage = (message: any) => {
       try {
@@ -312,12 +383,11 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       setupBackgroundCamera()
     }, [isCameraOn, isInCall, isSearching, cameraFacing])
 
-    // Additional effect to ensure camera preview is restored after tab switches
+    // Camera preview restoration effect (simplified)
     useEffect(() => {
-      // Small delay to ensure tab switching is complete
       const timer = setTimeout(() => {
         if (isCameraOn && !isInCall && !isSearching && !localStreamRef.current) {
-          console.log("Restoring camera preview after tab switch...")
+          console.log("📹 Restoring camera preview...")
           const restoreCamera = async () => {
             try {
               const hasPermissions = await requestCameraAndMicrophonePermissions()
@@ -335,9 +405,9 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
 
               localStreamRef.current = stream
               setVideoKey((prev) => prev + 1) // Force RTCView re-render
-              console.log("Camera preview restored after tab switch")
+              console.log("✅ Camera preview restored")
             } catch (error) {
-              console.error("Error restoring camera preview:", error)
+              console.error("❌ Error restoring camera preview:", error)
             }
           }
           restoreCamera()
@@ -345,7 +415,7 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       }, 300)
 
       return () => clearTimeout(timer)
-    }, [shouldAutoConnect]) // This will trigger when tab is switched
+    }, [isCameraOn, isInCall, isSearching])
 
     // Searching animation
     useEffect(() => {
@@ -447,37 +517,33 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
 
     // Unified auto-connection and reconnection logic
     useEffect(() => {
-      console.log("Connection management effect:", {
+      console.log("🔧 Connection management effect:", {
         shouldAutoConnect,
         connectionStatus,
-        shouldDisconnectOnTabSwitch,
         isProcessing,
         hasWebSocket: !!wsRef.current,
+        hasCachedConnection: !!getCachedConnection()
       })
-
-      if (shouldDisconnectOnTabSwitch && connectionStatus !== "disconnected") {
-        console.log("Auto-disconnecting from video server due to tab switch...")
-        disconnect()
-        return
-      }
 
       if (
         shouldAutoConnect &&
         connectionStatus === "disconnected" &&
-        !shouldDisconnectOnTabSwitch &&
         !isProcessing &&
-        !wsRef.current
+        !wsRef.current &&
+        !getCachedConnection()
       ) {
-        console.log("Auto-connecting to video server...")
+        console.log("🚀 Auto-connecting to video server...")
         const timer = setTimeout(() => {
-          if (connectionStatus === "disconnected" && !wsRef.current) {
-            connectToServer()
+          if (connectionStatus === "disconnected" && !wsRef.current && !getCachedConnection()) {
+            connectToServer().catch(error => {
+              console.error("❌ Auto-connect failed:", error);
+            });
           }
         }, 500)
 
         return () => clearTimeout(timer)
       }
-    }, [shouldAutoConnect, connectionStatus, shouldDisconnectOnTabSwitch, isProcessing])
+    }, [shouldAutoConnect, connectionStatus, isProcessing])
 
     // Expose methods to parent component
     useImperativeHandle(
@@ -520,18 +586,31 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
     }
 
-    const cleanup = () => {
+    const cleanup = (fullCleanup: boolean = true) => {
+      console.log('🧹 Cleaning up resources...', { fullCleanup });
+      
+      // Handle WebSocket cleanup - preserve connection if not full cleanup
       if (wsRef.current) {
-        wsRef.current.close()
-        wsRef.current = null
+        if (fullCleanup) {
+          console.log('🔌 Closing WebSocket connection');
+          wsRef.current.close()
+          wsRef.current = null
+          invalidateConnectionCache();
+        } else {
+          console.log('💾 Preserving WebSocket connection for reuse');
+          // Don't close the connection, just clear the ref
+          wsRef.current = null;
+        }
       }
 
       if (peerConnectionRef.current) {
+        console.log('📞 Closing peer connection');
         peerConnectionRef.current.close()
         peerConnectionRef.current = null
       }
 
       if (localStreamRef.current) {
+        console.log('📹 Stopping local media stream');
         localStreamRef.current.getTracks().forEach((track) => track.stop())
         localStreamRef.current = null
       }
@@ -543,99 +622,154 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       setCallDuration(0)
 
       if (isAudioSetup) {
+        console.log('🔊 Restoring audio settings');
         restoreAudioSettings().catch(console.error)
       }
 
       KeepAwake.deactivate()
 
+      // Clear connection attempt
+      connectionAttemptRef.current = null;
+
+      // Reset state
       setIsCameraOn(true)
       setIsMicOn(true)
       setIsInCall(false)
       setIsProcessing(false)
       setIsLocalVideoLarge(false)
-      setConnectionStatus("disconnected")
+      
+      if (fullCleanup) {
+        setConnectionStatus("disconnected")
+        setIsConnected(false)
+      }
+      
       setStatusMessage("")
       setError("")
       setRoomId(null)
       setPartnerId(null)
       setRole(null)
-      setIsConnected(false)
       setIsSearching(false)
       setStatus("Ready")
+      
+      console.log('✅ Cleanup completed');
     }
 
-    const connectToServer = async () => {
-      try {
-        setConnectionStatus("connecting")
-        setStatusMessage("Getting authorization...")
-        setError("")
-
-        console.log("Connecting to production video chat server...")
-
-        const { token, signature, expiresAt } = await getVideoToken()
-
-        setStatusMessage("Connecting to server...")
-
-        const wsUrl = `${WEBSOCKET_URL}?token=${token}&signature=${signature}&expiresAt=${expiresAt}`
-        console.log("Connecting to:", WEBSOCKET_URL)
-
-        const ws = new WebSocket(wsUrl)
-
-        ws.onopen = () => {
-          console.log("Connected to video chat server")
-          setConnectionStatus("connected")
-          setStatusMessage("Connected to server")
-          setIsConnected(false)
-          wsRef.current = ws
-        }
-
-        ws.onmessage = async (event) => {
-          try {
-            const message = JSON.parse(event.data)
-            await handleServerMessage(message)
-          } catch (error) {
-            console.error("Error parsing server message:", error)
-          }
-        }
-
-        ws.onclose = () => {
-          console.log("Disconnected from video chat server")
-          setConnectionStatus("disconnected")
-          setStatusMessage("Disconnected from server")
-          setIsConnected(false)
-          wsRef.current = null
-        }
-
-        ws.onerror = (error) => {
-          console.error("WebSocket error:", error)
-          setError("Connection lost. Please check your internet and try reconnecting.")
-          setConnectionStatus("disconnected")
-          setIsConnected(false)
-        }
-      } catch (error) {
-        console.error("Error connecting to server:", error)
-        const errorMessage = error instanceof Error ? error.message : "Unknown error"
-
-        if (errorMessage.includes("Rate limit exceeded")) {
-          const retryMatch = errorMessage.match(/Try again in (\d+) seconds/)
-          const retryTime = retryMatch ? retryMatch[1] : "60"
-          setError(`Too many connection attempts. Please wait ${retryTime} seconds and try again.`)
-        } else if (errorMessage.includes("Network error") || errorMessage.includes("Cannot reach annochat.social")) {
-          setError("Can't connect to our servers. Please check your internet connection and try again.")
-        } else if (errorMessage.includes("Request timeout")) {
-          setError("Connection is taking too long. Please check your internet and try again.")
-        } else if (errorMessage.includes("Video token API endpoint not found")) {
-          setError("Service temporarily unavailable. Our team is working on it. Please try again later.")
-        } else if (errorMessage.includes("Server error")) {
-          setError("Our servers are having issues. Please try again in a few minutes.")
-        } else if (errorMessage.includes("Failed to get authorization")) {
-          setError("Authorization failed. Please try connecting again.")
-        } else {
-          setError("Unable to connect. Please check your internet and try again.")
-        }
-        setConnectionStatus("disconnected")
-        setIsConnected(false)
+    const connectToServer = async (): Promise<void> => {
+      // Prevent multiple concurrent connection attempts
+      if (connectionAttemptRef.current) {
+        console.log('⏳ Connection attempt already in progress, waiting...');
+        return connectionAttemptRef.current;
       }
+
+      // Check for existing valid connection first
+      const cachedWs = getCachedConnection();
+      if (cachedWs && connectionStatus === "connected") {
+        console.log('✅ Already connected with valid cached connection');
+        wsRef.current = cachedWs;
+        return Promise.resolve();
+      }
+
+      // Create new connection attempt promise
+      const connectionPromise = async (): Promise<void> => {
+        try {
+          setConnectionStatus("connecting")
+          setStatusMessage("Getting authorization...")
+          setError("")
+
+          console.log("🔗 Establishing connection to video chat server...")
+
+          // Use cached token if available
+          const { token, signature, expiresAt } = await getVideoToken()
+
+          setStatusMessage("Connecting to server...")
+
+          const wsUrl = `${WEBSOCKET_URL}?token=${token}&signature=${signature}&expiresAt=${expiresAt}`
+          console.log("Connecting to:", WEBSOCKET_URL)
+
+          const ws = new WebSocket(wsUrl)
+
+          // Setup connection promise
+          await new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              reject(new Error('Connection timeout after 15 seconds'));
+            }, 15000);
+
+            ws.onopen = () => {
+              clearTimeout(timeout);
+              console.log("✅ Connected to video chat server")
+              setConnectionStatus("connected")
+              setStatusMessage("Connected to server")
+              setIsConnected(false)
+              wsRef.current = ws
+              
+              // Cache the connection
+              cacheConnection(ws);
+              resolve();
+            }
+
+            ws.onerror = (error) => {
+              clearTimeout(timeout);
+              console.error("❌ WebSocket connection error:", error)
+              invalidateConnectionCache();
+              setError("Connection lost. Please check your internet and try reconnecting.")
+              setConnectionStatus("disconnected")
+              setIsConnected(false)
+              reject(error);
+            }
+          });
+
+          // Setup message and close handlers after connection is established
+          ws.onmessage = async (event) => {
+            try {
+              const message = JSON.parse(event.data)
+              await handleServerMessage(message)
+            } catch (error) {
+              console.error("Error parsing server message:", error)
+            }
+          }
+
+          ws.onclose = () => {
+            console.log("🔌 Disconnected from video chat server")
+            invalidateConnectionCache();
+            setConnectionStatus("disconnected")
+            setStatusMessage("Disconnected from server")
+            setIsConnected(false)
+            wsRef.current = null
+          }
+
+        } finally {
+          connectionAttemptRef.current = null;
+        }
+      };
+
+             connectionAttemptRef.current = connectionPromise();
+       try {
+         return await connectionAttemptRef.current;
+       } catch (error) {
+         console.error("❌ Error connecting to server:", error)
+         const errorMessage = error instanceof Error ? error.message : "Unknown error"
+
+         if (errorMessage.includes("Rate limit exceeded")) {
+           const retryMatch = errorMessage.match(/Try again in (\d+) seconds/)
+           const retryTime = retryMatch ? retryMatch[1] : "60"
+           setError(`Too many connection attempts. Please wait ${retryTime} seconds and try again.`)
+         } else if (errorMessage.includes("Network error") || errorMessage.includes("Cannot reach annochat.social")) {
+           setError("Can't connect to our servers. Please check your internet connection and try again.")
+         } else if (errorMessage.includes("Request timeout") || errorMessage.includes("Connection timeout")) {
+           setError("Connection is taking too long. Please check your internet and try again.")
+         } else if (errorMessage.includes("Video token API endpoint not found")) {
+           setError("Service temporarily unavailable. Our team is working on it. Please try again later.")
+         } else if (errorMessage.includes("Server error")) {
+           setError("Our servers are having issues. Please try again in a few minutes.")
+         } else if (errorMessage.includes("Failed to get authorization")) {
+           setError("Authorization failed. Please try connecting again.")
+         } else {
+           setError("Unable to connect. Please check your internet and try again.")
+         }
+         setConnectionStatus("disconnected")
+         setIsConnected(false)
+         throw error;
+       }
     }
 
     const handleServerMessage = async (message: any) => {
@@ -1032,13 +1166,15 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       shouldAutoSearchNextRef.current = shouldAutoSearchNextRef.current
     }
 
-    const handleCallEnded = () => {
+    const handleCallEnded = async () => {
+      console.log('📞 Call ended, cleaning up call resources...');
+      
       setStatusMessage("Call ended")
       setStatus("Ready")
       setIsInCall(false)
       setIsConnected(false)
       setIsLocalVideoLarge(false)
-      setConnectionStatus("connected")
+      setConnectionStatus("connected") // Keep connection alive
 
       if (peerConnectionRef.current) {
         peerConnectionRef.current.close()
@@ -1061,8 +1197,21 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       setPartnerId(null)
       setRole(null)
 
-      // Remove auto-search logic from here, now handled by useEffect
-      shouldAutoSearchNextRef.current = shouldAutoSearchNextRef.current
+      // Handle auto-search after call ends if skip was pressed
+      if (shouldAutoSearchNextRef.current) {
+        console.log('🔄 Auto-searching for next match after call ended...');
+        shouldAutoSearchNextRef.current = false;
+        
+        // Small delay to ensure cleanup is complete
+        setTimeout(async () => {
+          try {
+            await ensureConnectionAndSearch();
+          } catch (error) {
+            console.error('❌ Error in auto-search after call:', error);
+            setError("Failed to start new search. Please try again.");
+          }
+        }, 1000);
+      }
     }
 
     const handleConnectToServer = async () => {
@@ -1084,27 +1233,37 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
     }
 
     const findMatch = async () => {
-      if (!wsRef.current || connectionStatus !== "connected" || isProcessing) {
+      // Enhanced validation with better error handling
+      const validConnection = getCachedConnection() || wsRef.current;
+      
+      if (!validConnection || connectionStatus !== "connected" || isProcessing) {
         if (connectionStatus !== "connected") {
+          console.log("❌ Not connected to server");
           setError("Please connect to the server first")
         } else if (isProcessing) {
+          console.log("⏸️ Already processing request");
           setError("Please wait, processing your request...")
         }
         return
       }
 
+      // Ensure we're using the valid connection
+      wsRef.current = validConnection;
+
       setIsProcessing(true)
       setError("")
 
       try {
+        console.log("🎥 Setting up media stream for match search...");
+        
         // Check if we already have a video stream from background preview
         const hasExistingVideoStream =
           localStreamRef.current &&
           localStreamRef.current.getVideoTracks().length > 0 &&
-          localStreamRef.current.getVideoTracks()[0].readyState !== "ended"
+          localStreamRef.current.getVideoTracks()[0].readyState === "live"
 
         if (hasExistingVideoStream) {
-          console.log("Reusing existing background camera stream, just adding audio...")
+          console.log("♻️ Reusing existing background camera stream, just adding audio...")
 
           // We have a good video stream, just need to add audio
           try {
@@ -1117,22 +1276,22 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
             if (audioTrack && localStreamRef.current) {
               audioTrack.enabled = isMicOn
               localStreamRef.current.addTrack(audioTrack)
-              console.log("Added audio track to existing video stream")
+              console.log("🎤 Added audio track to existing video stream")
             }
           } catch (audioError) {
-            console.warn("Failed to add audio track, continuing with video only:", audioError)
+            console.warn("⚠️ Failed to add audio track, continuing with video only:", audioError)
           }
         } else {
-          console.log("No existing video stream, creating new media stream...")
+          console.log("🆕 No existing video stream, creating new media stream...")
 
           // Clean up any existing stream
           if (localStreamRef.current) {
-            console.log("Cleaning up existing stream before creating new one")
+            console.log("🧹 Cleaning up existing stream before creating new one")
             localStreamRef.current.getTracks().forEach((track) => track.stop())
             localStreamRef.current = null
           }
 
-          console.log("Creating media stream with camera facing:", cameraFacing)
+          console.log("📷 Creating media stream with camera facing:", cameraFacing)
           const stream = await mediaDevices.getUserMedia({
             video: {
               width: 640,
@@ -1144,21 +1303,22 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
           })
 
           localStreamRef.current = stream
-          console.log("Media stream created successfully")
+          console.log("✅ Media stream created successfully")
         }
 
         const hasPermissions = await requestCameraAndMicrophonePermissions()
         if (!hasPermissions) {
+          console.log("❌ Permissions not granted");
           setIsProcessing(false)
           return
         }
 
-        console.log("Setting up audio routing...")
+        console.log("🔊 Setting up audio routing...")
         const audioSetupSuccess = await setupAudioForVideoCall()
         if (audioSetupSuccess) {
-          console.log("Audio setup successful, current device:", currentDevice)
+          console.log("✅ Audio setup successful, current device:", currentDevice)
         } else {
-          console.warn("Audio setup failed, continuing with default settings")
+          console.warn("⚠️ Audio setup failed, continuing with default settings")
         }
 
         // Ensure tracks are enabled according to current settings
@@ -1167,21 +1327,26 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
 
         if (videoTrack) {
           videoTrack.enabled = isCameraOn
-          console.log("Video track enabled:", isCameraOn)
+          console.log("📹 Video track enabled:", isCameraOn)
         }
 
         if (audioTrack) {
           audioTrack.enabled = isMicOn
-          console.log("Audio track enabled:", isMicOn)
+          console.log("🎙️ Audio track enabled:", isMicOn)
         }
 
+        // Send find-match request using cached connection
+        console.log("📡 Sending find-match request...");
         wsRef.current.send(JSON.stringify({ event: "find-match" }))
 
         setConnectionStatus("searching")
         setStatusMessage("Getting ready...")
         setStatus("Getting ready...")
+        
+        console.log("🔍 Successfully initiated match search");
+        
       } catch (error) {
-        console.error("Error accessing media devices:", error)
+        console.error("❌ Error accessing media devices:", error)
         setError("Unable to access camera/microphone. Please grant permissions and try again.")
         setIsProcessing(false)
 
@@ -1240,30 +1405,81 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
     }
 
     const handleSkip = async () => {
-      // Remove debounce logic
-      // Set flag to auto-search after call ends
-      shouldAutoSearchNextRef.current = true
-
-      // Leave current call
-      if (isInCall) {
-        leaveCall()
-      } else {
-        // If not in call, just start searching immediately
-        if (connectionStatus === "connected" && wsRef.current && !isProcessing && !isSearching) {
-          try {
-            console.log("Skip: Not in call, starting search for next match...")
-            await findMatch()
-            shouldAutoSearchNextRef.current = false
-          } catch (error) {
-            console.error("Error finding next match:", error)
-            setError("Failed to find next match. Please try again.")
-            shouldAutoSearchNextRef.current = false
-          }
-        } else {
-          shouldAutoSearchNextRef.current = false
-        }
+      // Prevent multiple concurrent skip operations
+      if (isButtonDisabled || isProcessing) {
+        console.log('⏸️ Skip operation already in progress or button disabled');
+        return;
       }
-    }
+
+      setIsButtonDisabled(true);
+      setTimeout(() => setIsButtonDisabled(false), 2000); // Longer cooldown for skip
+
+      try {
+        console.log('⏭️ Skip button pressed, current state:', {
+          isInCall,
+          connectionStatus,
+          isSearching,
+          hasConnection: !!wsRef.current,
+          hasCachedConnection: !!getCachedConnection()
+        });
+
+        // Set flag to auto-search after call ends
+        shouldAutoSearchNextRef.current = true;
+
+        // Leave current call if in one
+        if (isInCall) {
+          console.log('📞 Leaving current call...');
+          leaveCall();
+          return; // Let the call end handler manage auto-search
+        }
+
+        // If not in call, ensure we have a connection and start searching
+        await ensureConnectionAndSearch();
+        
+      } catch (error) {
+        console.error("❌ Error in handleSkip:", error);
+        setError("Failed to skip. Please try again.");
+        shouldAutoSearchNextRef.current = false;
+      }
+    };
+
+    const ensureConnectionAndSearch = async () => {
+      try {
+        console.log('🔍 Ensuring connection for search...');
+        
+        // Check for existing valid connection first
+        let validConnection = getCachedConnection();
+        
+        if (!validConnection || connectionStatus !== "connected") {
+          console.log('🔄 No valid connection, establishing new one...');
+          await connectToServer();
+          validConnection = wsRef.current;
+        } else {
+          console.log('✅ Using existing valid connection');
+          wsRef.current = validConnection;
+        }
+
+        // Now start search if not already searching
+        if (validConnection && !isSearching && !isProcessing) {
+          console.log('🎯 Starting match search...');
+          await findMatch();
+          shouldAutoSearchNextRef.current = false;
+        } else if (isSearching) {
+          console.log('🔄 Already searching, skipping duplicate request');
+          shouldAutoSearchNextRef.current = false;
+        } else {
+          console.log('❌ Cannot start search - invalid state');
+          setError("Unable to start search. Please try again.");
+          shouldAutoSearchNextRef.current = false;
+        }
+        
+      } catch (error) {
+        console.error("❌ Error ensuring connection and searching:", error);
+        setError("Connection issue. Please check your internet and try again.");
+        shouldAutoSearchNextRef.current = false;
+        throw error;
+      }
+    };
 
     const leaveCall = () => {
       if (wsRef.current) {
@@ -1273,7 +1489,8 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
     }
 
     const disconnect = () => {
-      cleanup()
+      console.log('🔌 Disconnecting from video chat...');
+      cleanup(true) // Full cleanup including connection cache
       setConnectionStatus("disconnected")
       setStatusMessage("")
       setError("")
