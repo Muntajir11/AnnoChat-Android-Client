@@ -94,6 +94,10 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
     const cachedConnectionRef = useRef<CachedConnection | null>(null)
     const connectionAttemptRef = useRef<Promise<void> | null>(null)
 
+    // WebRTC operation lock to prevent race conditions
+    const webrtcOperationLockRef = useRef<boolean>(false)
+    const peerConnectionStateRef = useRef<'idle' | 'initializing' | 'connecting' | 'connected' | 'failed'>('idle')
+
     // Animation refs
     const pulseAnim = useRef(new Animated.Value(1)).current
     const rotateAnim = useRef(new Animated.Value(0)).current
@@ -183,15 +187,40 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       }
     };
 
+    // Queue for DataChannel messages sent before channel is ready
+    const dataChannelMessageQueueRef = useRef<any[]>([])
+
     const sendDataChannelMessage = (message: any) => {
       try {
         if (dataChannelRef.current && dataChannelRef.current.readyState === "open") {
           dataChannelRef.current.send(JSON.stringify(message))
+          console.log("📡 DataChannel message sent:", message)
         } else {
-          console.warn("DataChannel not ready, message not sent:", message)
+          console.warn("⏳ DataChannel not ready, queuing message:", message)
+          dataChannelMessageQueueRef.current.push(message)
         }
       } catch (error) {
-        console.error("Failed to send DataChannel message:", error)
+        console.error("❌ Failed to send DataChannel message:", error)
+      }
+    }
+
+    const flushDataChannelMessageQueue = () => {
+      if (dataChannelRef.current && dataChannelRef.current.readyState === "open") {
+        const queuedMessages = [...dataChannelMessageQueueRef.current]
+        dataChannelMessageQueueRef.current = []
+        
+        queuedMessages.forEach(message => {
+          try {
+            dataChannelRef.current!.send(JSON.stringify(message))
+            console.log("📡 Queued DataChannel message sent:", message)
+          } catch (error) {
+            console.error("❌ Failed to send queued DataChannel message:", error)
+          }
+        })
+        
+        if (queuedMessages.length > 0) {
+          console.log(`✅ Flushed ${queuedMessages.length} queued DataChannel messages`)
+        }
       }
     }
 
@@ -586,11 +615,32 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
     }
 
+    // Cleanup operation lock
+    const cleanupLockRef = useRef<boolean>(false)
+
     const cleanup = (fullCleanup: boolean = true) => {
+      // Prevent concurrent cleanup operations
+      if (cleanupLockRef.current) {
+        console.log('⏸️ Cleanup already in progress, skipping');
+        return;
+      }
+
+      cleanupLockRef.current = true;
       console.log('🧹 Cleaning up resources...', { fullCleanup });
       
-      // Handle WebSocket cleanup - preserve connection if not full cleanup
-      if (wsRef.current) {
+      try {
+        // Clear operation locks
+        webrtcOperationLockRef.current = false;
+        cameraOperationLockRef.current = false;
+        micOperationLockRef.current = false;
+        peerConnectionStateRef.current = 'idle';
+        
+        // Clear message queues
+        dataChannelMessageQueueRef.current = [];
+        iceCandidateQueueRef.current = [];
+      
+        // Handle WebSocket cleanup - preserve connection if not full cleanup
+        if (wsRef.current) {
         if (fullCleanup) {
           console.log('🔌 Closing WebSocket connection');
           wsRef.current.close()
@@ -652,6 +702,9 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       setStatus("Ready")
       
       console.log('✅ Cleanup completed');
+      } finally {
+        cleanupLockRef.current = false;
+      }
     }
 
     const connectToServer = async (): Promise<void> => {
@@ -846,19 +899,35 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
     }
 
     const initializeCall = async (isInitiator: boolean) => {
+      // Prevent concurrent initialization
+      if (webrtcOperationLockRef.current || peerConnectionStateRef.current !== 'idle') {
+        console.log("⏸️ WebRTC initialization already in progress, skipping");
+        return;
+      }
+
+      webrtcOperationLockRef.current = true;
+      peerConnectionStateRef.current = 'initializing';
+
       try {
+        console.log("🔄 Initializing WebRTC call, role:", isInitiator ? "caller" : "callee");
+        
         const peerConnection = new RTCPeerConnection({
           iceServers: ICE_SERVERS,
           iceTransportPolicy: "all",
         })
         peerConnectionRef.current = peerConnection
+        peerConnectionStateRef.current = 'connecting';
 
         // Create DataChannel for signaling camera/mic state
         let dataChannel: RTCDataChannel | null = null
         if (isInitiator) {
           dataChannel = peerConnection.createDataChannel("signal")
           ;(dataChannel as any).onopen = () => {
-            console.log("DataChannel open - sending initial camera state and requesting remote state")
+            console.log("📡 DataChannel open (initiator) - flushing queue and sending initial state")
+            
+            // Flush any queued messages first
+            flushDataChannelMessageQueue()
+            
             // Send our current state
             sendDataChannelMessage({ type: "camera", enabled: isCameraOn })
             sendDataChannelMessage({ type: "mic", enabled: isMicOn })
@@ -897,7 +966,11 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
           ;(peerConnection as any).ondatachannel = (event: any) => {
             dataChannel = event.channel
             ;(dataChannel as any).onopen = () => {
-              console.log("DataChannel open - sending current camera state")
+              console.log("📡 DataChannel open (receiver) - flushing queue and sending current state")
+              
+              // Flush any queued messages first
+              flushDataChannelMessageQueue()
+              
               if (dataChannel && dataChannel.readyState === "open") {
                 // Send current state, not state from when DataChannel was created
                 dataChannel.send(JSON.stringify({ type: "camera", enabled: isCameraOn }))
@@ -1070,9 +1143,16 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
             )
           }
         }
+        
+        peerConnectionStateRef.current = 'connected';
+        console.log("✅ WebRTC call initialization completed successfully");
+        
       } catch (error) {
-        console.error("Error initializing call:", error)
+        console.error("❌ Error initializing call:", error)
+        peerConnectionStateRef.current = 'failed';
         setError("Failed to start video call. Please try again.")
+      } finally {
+        webrtcOperationLockRef.current = false;
       }
     }
 
@@ -1081,6 +1161,11 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
         if (!peerConnectionRef.current) return
 
         await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.offer))
+        console.log("✅ Remote description set from offer")
+        
+        // Flush any queued ICE candidates now that remote description is set
+        await flushIceCandidateQueue()
+        
         const answer = await peerConnectionRef.current.createAnswer()
         await peerConnectionRef.current.setLocalDescription(answer)
 
@@ -1093,7 +1178,7 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
           )
         }
       } catch (error) {
-        console.error("Error handling WebRTC offer:", error)
+        console.error("❌ Error handling WebRTC offer:", error)
         setError("Connection issue. Please try reconnecting.")
       }
     }
@@ -1102,18 +1187,55 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       try {
         if (!peerConnectionRef.current) return
         await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.answer))
+        console.log("✅ Remote description set from answer")
+        
+        // Flush any queued ICE candidates now that remote description is set
+        await flushIceCandidateQueue()
       } catch (error) {
-        console.error("Error handling WebRTC answer:", error)
+        console.error("❌ Error handling WebRTC answer:", error)
         setError("Connection issue. Please try reconnecting.")
       }
     }
 
+    // Queue for ICE candidates received before remote description is set
+    const iceCandidateQueueRef = useRef<any[]>([])
+
     const handleWebRTCIceCandidate = async (data: any) => {
       try {
-        if (!peerConnectionRef.current) return
-        await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate))
+        if (!peerConnectionRef.current || !data.candidate) return
+        
+        const candidate = new RTCIceCandidate(data.candidate)
+        
+        // Check if remote description is set
+        if (peerConnectionRef.current.remoteDescription) {
+          await peerConnectionRef.current.addIceCandidate(candidate)
+          console.log("✅ Added ICE candidate immediately")
+        } else {
+          console.log("⏳ Remote description not set yet, queuing ICE candidate")
+          iceCandidateQueueRef.current.push(candidate)
+        }
       } catch (error) {
-        console.error("Error handling ICE candidate:", error)
+        console.error("❌ Error handling ICE candidate:", error)
+      }
+    }
+
+    const flushIceCandidateQueue = async () => {
+      if (peerConnectionRef.current && peerConnectionRef.current.remoteDescription) {
+        const queuedCandidates = [...iceCandidateQueueRef.current]
+        iceCandidateQueueRef.current = []
+        
+        for (const candidate of queuedCandidates) {
+          try {
+            await peerConnectionRef.current.addIceCandidate(candidate)
+            console.log("✅ Added queued ICE candidate")
+          } catch (error) {
+            console.error("❌ Failed to add queued ICE candidate:", error)
+          }
+        }
+        
+        if (queuedCandidates.length > 0) {
+          console.log(`✅ Flushed ${queuedCandidates.length} queued ICE candidates`)
+        }
       }
     }
 
@@ -1134,6 +1256,16 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
     }, [isInCall, connectionStatus, isProcessing, isSearching])
 
     const handlePartnerLeft = () => {
+      console.log('👋 Partner left the call, cleaning up...');
+      
+      // Reset WebRTC state
+      peerConnectionStateRef.current = 'idle';
+      webrtcOperationLockRef.current = false;
+      
+      // Clear message queues
+      dataChannelMessageQueueRef.current = [];
+      iceCandidateQueueRef.current = [];
+      
       setStatusMessage("Partner left the call")
       setStatus("Ready")
       setIsInCall(false)
@@ -1144,6 +1276,10 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       if (peerConnectionRef.current) {
         peerConnectionRef.current.close()
         peerConnectionRef.current = null
+      }
+      
+      if (dataChannelRef.current) {
+        dataChannelRef.current = null
       }
 
       remoteStreamRef.current = null
@@ -1162,8 +1298,7 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       setPartnerId(null)
       setRole(null)
 
-      // Remove auto-search logic from here, now handled by useEffect
-      shouldAutoSearchNextRef.current = shouldAutoSearchNextRef.current
+      console.log('✅ Partner left cleanup completed');
     }
 
     const handleCallEnded = async () => {
@@ -1496,15 +1631,27 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       setError("")
     }
 
+    // Media operation locks to prevent race conditions
+    const cameraOperationLockRef = useRef<boolean>(false)
+    const micOperationLockRef = useRef<boolean>(false)
+
     const toggleCamera = async () => {
-      console.log(
-        "Toggle camera called, current state:",
-        isCameraOn,
-        "has stream:",
-        !!localStreamRef.current,
-        "has peer:",
-        !!peerConnectionRef.current,
-      )
+      // Prevent concurrent camera operations
+      if (cameraOperationLockRef.current) {
+        console.log("⏸️ Camera operation already in progress, skipping");
+        return;
+      }
+
+      cameraOperationLockRef.current = true;
+      try {
+        console.log(
+          "📹 Toggle camera called, current state:",
+          isCameraOn,
+          "has stream:",
+          !!localStreamRef.current,
+          "has peer:",
+          !!peerConnectionRef.current,
+        )
 
       if (localStreamRef.current && peerConnectionRef.current) {
         if (isCameraOn) {
@@ -1674,11 +1821,21 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
             setIsCameraOn(false) // Revert state on error
           }
         }
+      } finally {
+        cameraOperationLockRef.current = false;
       }
     }
 
     const toggleMic = () => {
-      if (localStreamRef.current) {
+      // Prevent concurrent mic operations
+      if (micOperationLockRef.current) {
+        console.log("⏸️ Mic operation already in progress, skipping");
+        return;
+      }
+
+      micOperationLockRef.current = true;
+      try {
+        if (localStreamRef.current) {
         const audioTrack = localStreamRef.current.getAudioTracks()[0]
         if (audioTrack) {
           // Audio track exists, toggle it
@@ -1706,6 +1863,8 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
         if (dataChannelRef.current && dataChannelRef.current.readyState === "open") {
           dataChannelRef.current.send(JSON.stringify({ type: "mic", enabled: !isMicOn }))
         }
+      } finally {
+        micOperationLockRef.current = false;
       }
     }
 
