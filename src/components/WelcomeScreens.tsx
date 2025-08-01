@@ -156,43 +156,37 @@ const TermsScreen = ({ onAccept, onBack }: TermsScreenProps) => {
         }}
       >
         <View style={styles.termsSection}>
-          <Text style={styles.termsSectionTitle}>🎭 Stay Anonymous, Stay Safe</Text>
+          <Text style={styles.termsSectionTitle}>Privacy & Anonymity</Text>
           <Text style={styles.termsText}>
-            • Your real identity stays hidden - always{"\n"}• No personal data stored on our servers{"\n"}•
-            Conversations vanish when you're done{"\n"}• Jump in without signing up - it's that easy
+            • Your identity remains completely anonymous during all interactions{"\n"}• We do not collect, store, or process personal identifying information{"\n"}• All conversations are ephemeral and automatically deleted upon session termination{"\n"}• No registration or account creation is required to use this service
           </Text>
         </View>
 
         <View style={styles.termsSection}>
-          <Text style={styles.termsSectionTitle}>💖 Respect & Good Vibes</Text>
+          <Text style={styles.termsSectionTitle}>Community Standards</Text>
           <Text style={styles.termsText}>
-            • Treat everyone with kindness and respect{"\n"}• Keep it clean - no harassment or hate{"\n"}• Must be 18+
-            to join the fun{"\n"}• Report anything that feels wrong{"\n"}• Let's create magic together
+            • Users must treat all participants with respect and courtesy{"\n"}• Harassment, hate speech, and discriminatory behavior are strictly prohibited{"\n"}• This service is restricted to users 18 years of age and older{"\n"}• Users are encouraged to report inappropriate content or behavior{"\n"}• Violations of community standards may result in immediate service restriction
           </Text>
         </View>
 
         <View style={styles.termsSection}>
-          <Text style={styles.termsSectionTitle}>🚫 What's Not Cool</Text>
+          <Text style={styles.termsSectionTitle}>Prohibited Activities</Text>
           <Text style={styles.termsText}>
-            • Don't share personal contact info{"\n"}• No selling or promoting stuff{"\n"}• Keep it legal and fun{"\n"}•
-            We'll remove accounts that break these rules{"\n"}• Use your best judgment
+            • Sharing personal contact information is strictly forbidden{"\n"}• Commercial activities, advertising, and promotional content are not permitted{"\n"}• All activities must comply with applicable local and international laws{"\n"}• Accounts engaging in prohibited activities will be permanently suspended{"\n"}• Users are solely responsible for their conduct and content
           </Text>
         </View>
 
         <View style={styles.termsSection}>
-          <Text style={styles.termsSectionTitle}>🔒 Your Data & Security</Text>
+          <Text style={styles.termsSectionTitle}>Data Security & Protection</Text>
           <Text style={styles.termsText}>
-            • Military-grade encryption protects your chats{"\n"}• We collect minimal anonymous usage data{"\n"}• Full
-            compliance with privacy laws{"\n"}• Check our Privacy Policy for details{"\n"}• Your security is our
-            obsession
+            • All communications are protected using end-to-end encryption protocols{"\n"}• We collect only essential anonymous usage analytics for service improvement{"\n"}• Our data practices comply with GDPR, CCPA, and other applicable privacy regulations{"\n"}• Detailed information is available in our comprehensive Privacy Policy{"\n"}• Data security and user privacy are fundamental to our service design
           </Text>
         </View>
 
         <View style={styles.termsSection}>
-          <Text style={styles.termsSectionTitle}>⚠️ The Fine Print</Text>
+          <Text style={styles.termsSectionTitle}>Terms of Service</Text>
           <Text style={styles.termsText}>
-            • App provided "as is" - no guarantees{"\n"}• We're not responsible for user content{"\n"}• Use at your own
-            risk and discretion{"\n"}• Terms may change - we'll let you know
+            • This service is provided on an "as is" basis without warranties of any kind{"\n"}• We are not liable for user-generated content or interactions between users{"\n"}• Users assume all risks associated with service usage{"\n"}• These terms may be updated periodically with advance notice to users{"\n"}• Continued use constitutes acceptance of any modified terms
           </Text>
         </View>
       </ScrollView>
@@ -207,7 +201,7 @@ const TermsScreen = ({ onAccept, onBack }: TermsScreenProps) => {
             {accepted && <View style={styles.checkboxTick} />}
           </TouchableOpacity>
           <Text style={[styles.checkboxText, accepted ? styles.checkboxTextEnabled : styles.checkboxTextDisabled]}>
-            {!hasScrolledToBottom && !accepted ? "Scroll down to continue" : "I'm ready to start my adventure"}
+            {!hasScrolledToBottom && !accepted ? "Please scroll to review all terms" : "I agree to the Terms of Service and Privacy Policy"}
           </Text>
         </View>
 
@@ -221,7 +215,7 @@ const TermsScreen = ({ onAccept, onBack }: TermsScreenProps) => {
             disabled={!accepted}
           >
             <View style={[styles.solidButton, { backgroundColor: accepted ? "#8b5cf6" : "#6b7280" }]}>
-              <Text style={styles.buttonText}>🚀 Let's Go!</Text>
+              <Text style={styles.buttonText}>Continue</Text>
             </View>
           </TouchableOpacity>
         </View>
