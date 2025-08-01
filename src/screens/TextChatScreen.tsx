@@ -9,7 +9,7 @@ import { BackHandler, Alert } from "react-native";
 
 
 const SERVER_URL = "https://muntajir.me"
-const SOCKET_TOKEN_URL = "https://annochat.social/api/get-socket-token"
+import { getTextToken, getTextTokenWithRetry, hasCachedTextToken } from "../utils/textToken"
 
 interface TextChatScreenProps {
   navigation: any
@@ -24,10 +24,14 @@ export const TextChatScreen: React.FC<TextChatScreenProps> = ({ navigation, onMe
   const [authToken, setAuthToken] = useState<string | null>(null)
   const [strangerLeft, setStrangerLeft] = useState(false)
   const [isButtonDisabled, setIsButtonDisabled] = useState(false)
+  const [isConnecting, setIsConnecting] = useState(false) // Add connection state tracking
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const presenceWsRef = useRef<WebSocket | null>(null)
   const presenceConnectingRef = useRef(false)
   const [shouldAutoSearch, setShouldAutoSearch] = useState(false)
+  const connectingRef = useRef(false) // Prevent race conditions
+  const connectionAttemptRef = useRef<number>(0) // Track connection attempts
+  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null) // Track connection timeout
   // Animation refs
   const pulseAnim = useRef(new Animated.Value(1)).current
   const rotateAnim = useRef(new Animated.Value(0)).current
@@ -142,11 +146,11 @@ export const TextChatScreen: React.FC<TextChatScreenProps> = ({ navigation, onMe
 
   const fetchToken = async () => {
     try {
-      const res = await fetch(SOCKET_TOKEN_URL)
-      const data = await res.json()
-      setAuthToken(data.token || null)
-    } catch {
-      console.error("Failed to fetch token")
+      const token = await getTextTokenWithRetry(3)
+      setAuthToken(token)
+    } catch (error) {
+      console.error("Failed to fetch token:", error)
+      setAuthToken(null)
     }
   }
 
@@ -297,101 +301,195 @@ export const TextChatScreen: React.FC<TextChatScreenProps> = ({ navigation, onMe
     }
   }, [isConnected])
 
-  const connectChat = () => {
-    if (chatWsRef.current) {
-      chatWsRef.current.close()
-      chatWsRef.current = null
+  const connectChat = async () => {
+    // Prevent race conditions - only allow one connection attempt at a time
+    if (connectingRef.current) {
+      console.log("🔄 Connection already in progress, skipping duplicate attempt")
+      return
     }
-    const chatUrl = `${SERVER_URL.replace("http://", "ws://").replace("https://", "wss://")}/?token=${authToken}`
-    const chatWs = new WebSocket(chatUrl)
-    chatWsRef.current = chatWs
 
-    chatWs.onopen = () => {}
+    // Check if we already have a healthy connection
+    if (chatWsRef.current && chatWsRef.current.readyState === WebSocket.OPEN) {
+      console.log("🎯 Using existing healthy chat connection")
+      return
+    }
 
-    chatWs.onmessage = (e) => {
-      const { event, data } = JSON.parse(e.data)
+    connectingRef.current = true
+    setIsConnecting(true)
+    const currentAttempt = ++connectionAttemptRef.current
 
-      switch (event) {
-        case "matched":
-          setIsSearching(false)
-          setIsConnected(true)
-          setRoomId(data.roomId)
-          setStrangerLeft(false)
-          setMessages([
-            {
-              id: "system-1",
-              text: "You are now chatting with a stranger.\nSay hi!",
-              sender: "system",
-              timestamp: new Date(),
-            },
-          ])
+    try {
+      // Use cached token when available
+      let token = authToken
+      if (!token || !hasCachedTextToken()) {
+        console.log("🔄 Refreshing text token...")
+        token = await getTextTokenWithRetry(3)
+        setAuthToken(token)
+      }
 
-          chatWs.send(JSON.stringify({ event: "join room", data: data.roomId }))
-          break
+      if (!token) {
+        throw new Error("Failed to get authentication token")
+      }
 
-        case "chat message":
-          if (data.senderId !== "self") {
-            setMessages((m) => [
-              ...m,
+      // Close existing connection if any
+      if (chatWsRef.current) {
+        chatWsRef.current.close()
+        chatWsRef.current = null
+      }
+
+      console.log(`🔄 Text chat connection attempt ${currentAttempt} with ${hasCachedTextToken() ? 'cached' : 'fresh'} token`)
+
+      const chatUrl = `${SERVER_URL.replace("http://", "ws://").replace("https://", "wss://")}/?token=${token}`
+      const chatWs = new WebSocket(chatUrl)
+      chatWsRef.current = chatWs
+
+      // Set a connection timeout
+      const connectionTimeout = setTimeout(() => {
+        if (chatWs.readyState === WebSocket.CONNECTING) {
+          console.warn("⚠️ Text chat connection timeout")
+          chatWs.close()
+        }
+      }, 10000) // 10 second timeout
+      
+      connectionTimeoutRef.current = connectionTimeout
+
+      chatWs.onopen = () => {
+        clearTimeout(connectionTimeout)
+        connectionTimeoutRef.current = null
+        console.log("✅ Text chat connected successfully")
+        setIsConnecting(false)
+        connectingRef.current = false
+        connectionAttemptRef.current = 0 // Reset on success
+      }
+
+      chatWs.onclose = () => {
+        if (connectionTimeoutRef.current) {
+          clearTimeout(connectionTimeoutRef.current)
+          connectionTimeoutRef.current = null
+        }
+        connectingRef.current = false
+        setIsConnecting(false)
+      }
+
+      chatWs.onerror = () => {
+        if (connectionTimeoutRef.current) {
+          clearTimeout(connectionTimeoutRef.current)
+          connectionTimeoutRef.current = null
+        }
+        connectingRef.current = false
+        setIsConnecting(false)
+      }
+
+      chatWs.onmessage = (e) => {
+        const { event, data } = JSON.parse(e.data)
+
+        switch (event) {
+          case "matched":
+            setIsSearching(false)
+            setIsConnected(true)
+            setRoomId(data.roomId)
+            setStrangerLeft(false)
+            setMessages([
               {
-                id: `str-${Date.now()}`,
-                text: data.msg,
-                sender: "stranger",
-                timestamp: new Date(),
-              },
-            ])
-          }
-          break
-
-        case "typing":
-          if (data.senderId !== "self") {
-            setStrangerTyping(data.isTyping)
-          }
-          break
-
-        case "user disconnected":
-          setMessages((prev) => {
-            if (prev.some((m) => m.text.includes("Stranger has disconnected"))) return prev
-            return [
-              ...prev,
-              {
-                id: `sysdisc-${Date.now()}`,
-                text: "Stranger has disconnected. Tap Exit to leave.",
+                id: "system-1",
+                text: "You are now chatting with a stranger.\nSay hi!",
                 sender: "system",
                 timestamp: new Date(),
               },
-            ]
-          })
-          setStrangerLeft(true)
-          setStrangerTyping(false)
-          break
+            ])
 
-        case "error":
-          if (data && data.message === "Auth failed") {
-            setStatus("Authentication failed. Please try again.")
-            chatWs.close()
-            setIsConnected(false)
-            setIsSearching(false)
-          } else {
-            setStatus(`Error: ${data.message || "Unknown error"}`)
-          }
-          break
+            chatWs.send(JSON.stringify({ event: "join room", data: data.roomId }))
+            break
+
+          case "chat message":
+            if (data.senderId !== "self") {
+              setMessages((m) => [
+                ...m,
+                {
+                  id: `str-${Date.now()}`,
+                  text: data.msg,
+                  sender: "stranger",
+                  timestamp: new Date(),
+                },
+              ])
+            }
+            break
+
+          case "typing":
+            if (data.senderId !== "self") {
+              setStrangerTyping(data.isTyping)
+            }
+            break
+
+          case "user disconnected":
+            setMessages((prev) => {
+              if (prev.some((m) => m.text.includes("Stranger has disconnected"))) return prev
+              return [
+                ...prev,
+                {
+                  id: `sysdisc-${Date.now()}`,
+                  text: "Stranger has disconnected. Tap Exit to leave.",
+                  sender: "system",
+                  timestamp: new Date(),
+                },
+              ]
+            })
+            setStrangerLeft(true)
+            setStrangerTyping(false)
+            break
+
+          case "error":
+            if (data && data.message === "Auth failed") {
+              setStatus("Authentication failed. Please try again.")
+              chatWs.close()
+              setIsConnected(false)
+              setIsSearching(false)
+            } else {
+              setStatus(`Error: ${data.message || "Unknown error"}`)
+            }
+            break
+        }
       }
-    }
 
-    chatWs.onerror = (error) => {
+      chatWs.onerror = (error) => {
+        clearTimeout(connectionTimeout)
+        console.error("❌ Text chat WebSocket error:", error)
+        setIsSearching(false)
+        setStatus("Connection failed.")
+        setIsConnecting(false)
+        connectingRef.current = false
+      }
+
+      chatWs.onclose = (event) => {
+        clearTimeout(connectionTimeout)
+        console.log("🔌 Text chat WebSocket closed:", event.code, event.reason)
+        setIsConnecting(false)
+        connectingRef.current = false
+        
+        if (chatWsRef.current === chatWs) {
+          chatWsRef.current = null
+        }
+        
+        // Only attempt reconnection on unexpected closure
+        if (event.code !== 1000 && connectionAttemptRef.current < 3) {
+          console.log(`🔄 Attempting text chat reconnection ${connectionAttemptRef.current + 1}/3`)
+          setTimeout(() => {
+            if (connectionAttemptRef.current < 3) {
+              connectChat()
+            }
+          }, 2000 * connectionAttemptRef.current) // Increasing delay
+        }
+      }
+    } catch (error) {
+      console.error("❌ Text chat connection error:", error)
+      setIsConnecting(false)
+      connectingRef.current = false
+      setStatus("Failed to connect. Please try again.")
       setIsSearching(false)
-      setStatus("Connection failed.")
-    }
-
-    chatWs.onclose = (event) => {
-      if (chatWsRef.current === chatWs) {
-        chatWsRef.current = null
-      }
     }
   }
 
-  const handleFindChat = () => {
+  const handleFindChat = async () => {
     if (isButtonDisabled || status !== "Ready") return
 
     setIsButtonDisabled(true)
@@ -403,8 +501,8 @@ export const TextChatScreen: React.FC<TextChatScreenProps> = ({ navigation, onMe
     setRoomId(null)
     setMessages([])
 
-    if (authToken) {
-      connectChat()
+    if (authToken || hasCachedTextToken()) {
+      await connectChat()
       setIsSearching(true)
       setStatus("Searching for a match...")
     } else {

@@ -9,8 +9,8 @@ import {
   Alert,
   Linking,
   Clipboard,
-  SafeAreaView,
   StatusBar,
+  Animated,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,6 +23,24 @@ export const SupportFeedbackScreen: React.FC<SupportFeedbackScreenProps> = ({ na
   const [name, setName] = useState('');
   const [message, setMessage] = useState('');
   const insets = useSafeAreaInsets();
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const scaleAnim = React.useRef(new Animated.Value(0.9)).current;
+
+  React.useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 100,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
   
   const handleSubmit = () => {
     if (!name.trim() || !message.trim()) {
@@ -61,13 +79,13 @@ export const SupportFeedbackScreen: React.FC<SupportFeedbackScreenProps> = ({ na
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+      <StatusBar barStyle="light-content" backgroundColor="#0A0A0F" />
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => navigation.goBack()}
-          activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={24} color="#F1F5F9" />
+          activeOpacity={0.8}>
+          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Support & Feedback</Text>
         <View style={styles.placeholder} />
@@ -75,65 +93,91 @@ export const SupportFeedbackScreen: React.FC<SupportFeedbackScreenProps> = ({ na
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.scrollContent}>
-          <View style={styles.iconSection}>
+          <Animated.View style={[styles.iconSection, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
             <View style={styles.iconContainer}>
-              <Ionicons name="help-circle-outline" size={48} color="#10B981" />
+              <View style={styles.iconBackground}>
+                <Ionicons name="help-circle" size={48} color="#FF6B6B" />
+              </View>
+              {/* Animated rings around icon */}
+              <View style={[styles.ring, styles.ring1]} />
+              <View style={[styles.ring, styles.ring2]} />
             </View>
             <Text style={styles.title}>We're Here to Help</Text>
             <Text style={styles.subtitle}>
               Have a question, suggestion, or found a bug? We'd love to hear from you!
             </Text>
-          </View>
+          </Animated.View>
 
-          <View style={styles.formSection}>
+          <Animated.View style={[styles.formSection, { opacity: fadeAnim }]}>
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Your Name</Text>
+              <View style={styles.labelContainer}>
+                <Ionicons name="person" size={16} color="#8B5CF6" />
+                <Text style={styles.label}>Your Name</Text>
+              </View>
               <TextInput
                 style={styles.input}
                 value={name}
                 onChangeText={setName}
                 placeholder="Enter your name"
-                placeholderTextColor="rgba(203, 213, 225, 0.6)"
+                placeholderTextColor="rgba(203, 213, 225, 0.5)"
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Your Message</Text>
+              <View style={styles.labelContainer}>
+                <Ionicons name="chatbubble-ellipses" size={16} color="#4CAF50" />
+                <Text style={styles.label}>Your Message</Text>
+              </View>
               <TextInput
                 style={[styles.input, styles.messageInput]}
                 value={message}
                 onChangeText={setMessage}
                 placeholder="Tell us what's on your mind..."
-                placeholderTextColor="rgba(203, 213, 225, 0.6)"
+                placeholderTextColor="rgba(203, 213, 225, 0.5)"
                 multiline
-                numberOfLines={6}
                 textAlignVertical="top"
               />
             </View>
 
-            <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-              <Ionicons name="send" size={20} color="#FFFFFF" />
+            <TouchableOpacity 
+              style={styles.submitButton}
+              onPress={handleSubmit}
+              activeOpacity={0.8}>
+              <View style={styles.submitIconContainer}>
+                <Ionicons name="paper-plane" size={16} color="#FFFFFF" />
+              </View>
               <Text style={styles.submitText}>Send Feedback</Text>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
 
-          <View style={styles.contactSection}>
-            <Text style={styles.contactTitle}>Other Ways to Reach Us</Text>
+          <Animated.View style={[styles.contactSection, { opacity: fadeAnim }]}>
+            <View style={styles.contactHeader}>
+              <Ionicons name="mail" size={20} color="#8B5CF6" />
+              <Text style={styles.contactTitle}>Other Ways to Reach Us</Text>
+            </View>
             
             <TouchableOpacity 
               style={styles.contactItem}
-              onPress={() => Linking.openURL('mailto:annochat.social@gmail.com')}>
-              <Ionicons name="mail-outline" size={20} color="#10B981" />
+              onPress={() => Linking.openURL('mailto:annochat.social@gmail.com')}
+              activeOpacity={0.8}>
+              <View style={styles.contactIconContainer}>
+                <Ionicons name="mail" size={18} color="#4CAF50" />
+              </View>
               <Text style={styles.contactText}>annochat.social@gmail.com</Text>
+              <Ionicons name="arrow-forward" size={14} color="#8B5CF6" />
             </TouchableOpacity>
 
             <TouchableOpacity 
               style={styles.contactItem}
-              onPress={() => Linking.openURL('https://annochat.social')}>
-              <Ionicons name="globe-outline" size={20} color="#10B981" />
-              <Text style={styles.contactText}>annochat.social</Text>
+              onPress={() => Linking.openURL('https://annochat.social')}
+              activeOpacity={0.8}>
+              <View style={styles.contactIconContainer}>
+                <Ionicons name="globe" size={18} color="#FF6B6B" />
+              </View>
+              <Text style={styles.contactText}>Visit our website</Text>
+              <Ionicons name="arrow-forward" size={14} color="#8B5CF6" />
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         </View>
       </ScrollView>
     </View>
@@ -143,38 +187,39 @@ export const SupportFeedbackScreen: React.FC<SupportFeedbackScreenProps> = ({ na
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0A0A0F',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 12,
-    backgroundColor: '#1E293B',
+    backgroundColor: 'rgba(15, 23, 42, 0.95)',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(52, 211, 153, 0.2)',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    borderBottomColor: 'rgba(139, 92, 246, 0.1)',
+    shadowColor: '#8B5CF6',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 8,
+    elevation: 5,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#F1F5F9',
-    textAlign: 'center',
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   placeholder: {
     width: 40,
@@ -183,121 +228,162 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 20,
+    padding: 24,
+    paddingBottom: 40,
   },
   iconSection: {
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 32,
   },
   iconContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  iconBackground: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(255, 107, 107, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
-    borderWidth: 2,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
+    zIndex: 2,
+  },
+  ring: {
+    position: 'absolute',
+    borderRadius: 50,
+    borderWidth: 1,
+    opacity: 0.3,
+  },
+  ring1: {
+    width: 100,
+    height: 100,
+    borderColor: '#FF6B6B',
+  },
+  ring2: {
+    width: 120,
+    height: 120,
+    borderColor: '#8B5CF6',
+    opacity: 0.2,
   },
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#F1F5F9',
+    color: '#FFFFFF',
+    marginBottom: 12,
     textAlign: 'center',
-    marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: '#CBD5E1',
+    color: 'rgba(203, 213, 225, 0.8)',
     textAlign: 'center',
     lineHeight: 24,
-    paddingHorizontal: 20,
+    maxWidth: 280,
   },
   formSection: {
-    marginBottom: 30,
+    marginBottom: 32,
   },
   inputGroup: {
     marginBottom: 20,
   },
+  labelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#F1F5F9',
-    marginBottom: 8,
+    color: '#FFFFFF',
+    marginLeft: 8,
   },
   input: {
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: '#F1F5F9',
+    backgroundColor: 'rgba(15, 23, 42, 0.8)',
     borderWidth: 1,
-    borderColor: 'rgba(52, 211, 153, 0.3)',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    borderColor: 'rgba(139, 92, 246, 0.2)',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#FFFFFF',
+    minHeight: 50,
   },
   messageInput: {
     minHeight: 120,
     textAlignVertical: 'top',
   },
   submitButton: {
-    backgroundColor: '#10B981',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: '#8B5CF6',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    elevation: 4,
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 2 },
+    shadowColor: '#8B5CF6',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  submitIconContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
   submitText: {
-    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
-    marginLeft: 8,
+    color: '#FFFFFF',
   },
   contactSection: {
-    backgroundColor: '#1E293B',
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
-    borderColor: 'rgba(52, 211, 153, 0.2)',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderColor: 'rgba(139, 92, 246, 0.1)',
+  },
+  contactHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   contactTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#F1F5F9',
-    marginBottom: 16,
+    color: '#FFFFFF',
+    marginLeft: 12,
   },
   contactItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 16,
     paddingHorizontal: 16,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(139, 92, 246, 0.05)',
     borderRadius: 12,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  contactIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
   },
   contactText: {
+    flex: 1,
     fontSize: 16,
-    color: '#F1F5F9',
-    marginLeft: 12,
+    color: 'rgba(203, 213, 225, 0.9)',
+    fontWeight: '500',
   },
 });

@@ -1,7 +1,6 @@
 "use client"
-
 import React from "react"
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Animated, Dimensions, StatusBar } from "react-native"
+import { View, Text, StyleSheet, TouchableHighlight, Modal, Animated, Dimensions, StatusBar, Linking } from "react-native"
 import Ionicons from "react-native-vector-icons/Ionicons"
 
 interface SideDrawerProps {
@@ -18,7 +17,7 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({ isVisible, onClose, navi
   React.useEffect(() => {
     if (isVisible) {
       Animated.timing(slideAnim, {
-        toValue: screenWidth * 0.25, // Show drawer taking 75% width
+        toValue: screenWidth * 0.25,
         duration: 300,
         useNativeDriver: false,
       }).start()
@@ -36,57 +35,108 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({ isVisible, onClose, navi
     navigation.navigate(screenName)
   }
 
+  const handleExternalLink = (url: string) => {
+    onClose()
+    Linking.openURL(url).catch((err) => console.error('Failed to open URL:', err))
+  }
+
   if (!isVisible) return null
 
   return (
     <Modal transparent visible={isVisible} animationType="none">
       <View style={styles.overlay}>
-        {/* Backdrop */}
-        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
-
-        {/* Drawer */}
+        <TouchableHighlight style={styles.backdrop} activeOpacity={1} onPress={onClose} underlayColor="transparent">
+          <View style={{ flex: 1 }} />
+        </TouchableHighlight>
+        
         <Animated.View style={[styles.drawer, { left: slideAnim }]}>
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Menu</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color="#F1F5F9" />
-            </TouchableOpacity>
+            <TouchableHighlight onPress={onClose} style={styles.closeButton} activeOpacity={0.7} underlayColor="rgba(255, 255, 255, 0.1)">
+              <Ionicons name="close" size={24} color="#FFFFFF" />
+            </TouchableHighlight>
           </View>
-
+          
           <View style={styles.content}>
             {/* Settings */}
-            <TouchableOpacity style={styles.menuItem} onPress={() => navigateToScreen("Settings")}>
-              <Ionicons name="settings-outline" size={24} color="#10B981" />
-              <Text style={styles.menuText}>Settings</Text>
-              <Ionicons name="chevron-forward" size={20} color="#6EE7B7" />
-            </TouchableOpacity>
+            <TouchableHighlight 
+              style={styles.menuItem} 
+              onPress={() => navigateToScreen("Settings")} 
+              activeOpacity={0.8}
+              underlayColor="rgba(255, 255, 255, 0.08)"
+            >
+              <View style={styles.menuItemContent}>
+                <View style={styles.iconContainer}>
+                  <Ionicons name="settings-outline" size={20} color="#4CAF50" />
+                </View>
+                <Text style={styles.menuText}>Settings</Text>
+                <Ionicons name="chevron-forward" size={16} color="rgba(255, 255, 255, 0.6)" />
+              </View>
+            </TouchableHighlight>
 
             {/* About */}
-            <TouchableOpacity style={styles.menuItem} onPress={() => navigateToScreen("About")}>
-              <Ionicons name="information-circle-outline" size={24} color="#10B981" />
-              <Text style={styles.menuText}>About</Text>
-              <Ionicons name="chevron-forward" size={20} color="#6EE7B7" />
-            </TouchableOpacity>
+            <TouchableHighlight 
+              style={styles.menuItem} 
+              onPress={() => navigateToScreen("About")} 
+              activeOpacity={0.8}
+              underlayColor="rgba(255, 255, 255, 0.08)"
+            >
+              <View style={styles.menuItemContent}>
+                <View style={styles.iconContainer}>
+                  <Ionicons name="information-circle-outline" size={20} color="#8B5CF6" />
+                </View>
+                <Text style={styles.menuText}>About</Text>
+                <Ionicons name="chevron-forward" size={16} color="rgba(255, 255, 255, 0.6)" />
+              </View>
+            </TouchableHighlight>
 
             {/* Support & Feedback */}
-            <TouchableOpacity style={styles.menuItem} onPress={() => navigateToScreen("SupportFeedback")}>
-              <Ionicons name="help-circle-outline" size={24} color="#10B981" />
-              <Text style={styles.menuText}>Support and Feedback</Text>
-              <Ionicons name="chevron-forward" size={20} color="#6EE7B7" />
-            </TouchableOpacity>
+            <TouchableHighlight 
+              style={styles.menuItem} 
+              onPress={() => navigateToScreen("SupportFeedback")} 
+              activeOpacity={0.8}
+              underlayColor="rgba(255, 255, 255, 0.08)"
+            >
+              <View style={styles.menuItemContent}>
+                <View style={styles.iconContainer}>
+                  <Ionicons name="help-circle-outline" size={20} color="#FF6B6B" />
+                </View>
+                <Text style={styles.menuText}>Support and Feedback</Text>
+                <Ionicons name="chevron-forward" size={16} color="rgba(255, 255, 255, 0.6)" />
+              </View>
+            </TouchableHighlight>
 
-            {/* Additional Options */}
-            <TouchableOpacity style={styles.menuItem}>
-              <Ionicons name="shield-outline" size={24} color="#10B981" />
-              <Text style={styles.menuText}>Privacy Policy</Text>
-              <Ionicons name="chevron-forward" size={20} color="#6EE7B7" />
-            </TouchableOpacity>
+            {/* Privacy Policy */}
+            <TouchableHighlight 
+              style={styles.menuItem} 
+              onPress={() => handleExternalLink("https://annochat.social")} 
+              activeOpacity={0.8}
+              underlayColor="rgba(255, 255, 255, 0.08)"
+            >
+              <View style={styles.menuItemContent}>
+                <View style={styles.iconContainer}>
+                  <Ionicons name="shield-outline" size={20} color="#4CAF50" />
+                </View>
+                <Text style={styles.menuText}>Privacy Policy</Text>
+                <Ionicons name="chevron-forward" size={16} color="rgba(255, 255, 255, 0.6)" />
+              </View>
+            </TouchableHighlight>
 
-            <TouchableOpacity style={styles.menuItem}>
-              <Ionicons name="document-text-outline" size={24} color="#10B981" />
-              <Text style={styles.menuText}>Terms of Service</Text>
-              <Ionicons name="chevron-forward" size={20} color="#6EE7B7" />
-            </TouchableOpacity>
+            {/* Terms of Service */}
+            <TouchableHighlight 
+              style={styles.menuItem} 
+              onPress={() => handleExternalLink("https://annochat.social")} 
+              activeOpacity={0.8}
+              underlayColor="rgba(255, 255, 255, 0.08)"
+            >
+              <View style={styles.menuItemContent}>
+                <View style={styles.iconContainer}>
+                  <Ionicons name="document-text-outline" size={20} color="#8B5CF6" />
+                </View>
+                <Text style={styles.menuText}>Terms of Service</Text>
+                <Ionicons name="chevron-forward" size={16} color="rgba(255, 255, 255, 0.6)" />
+              </View>
+            </TouchableHighlight>
           </View>
         </Animated.View>
       </View>
@@ -97,7 +147,7 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({ isVisible, onClose, navi
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.7)",
+    backgroundColor: "rgba(10, 10, 15, 0.75)",
   },
   backdrop: {
     flex: 1,
@@ -107,15 +157,15 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: "75%",
-    backgroundColor: "#0F172A",
+    backgroundColor: "#0A0A0F",
     borderLeftWidth: 1,
-    borderLeftColor: "rgba(52, 211, 153, 0.2)",
+    borderLeftColor: "rgba(76, 175, 80, 0.2)",
     paddingTop: StatusBar.currentHeight || 44,
     elevation: 16,
     shadowColor: "#000",
     shadowOffset: { width: -2, height: 0 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
   },
   header: {
     flexDirection: "row",
@@ -124,49 +174,55 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(52, 211, 153, 0.2)",
-    backgroundColor: "#0F172A",
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+    backgroundColor: "#0A0A0F",
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#F1F5F9",
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
   },
   closeButton: {
-    padding: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
   },
   content: {
     flex: 1,
-    paddingTop: 16,
+    paddingTop: 24,
+    paddingHorizontal: 16,
   },
   menuItem: {
+    marginVertical: 4,
+    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    overflow: 'hidden',
+  },
+  menuItemContent: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    marginHorizontal: 12,
-    marginVertical: 3,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  iconContainer: {
+    width: 32,
+    height: 32,
     borderRadius: 16,
-    backgroundColor: "rgba(30, 41, 59, 0.4)",
-    borderWidth: 1,
-    borderColor: "rgba(52, 211, 153, 0.1)",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+    backgroundColor: "transparent",
   },
   menuText: {
     flex: 1,
     fontSize: 16,
-    color: "#F1F5F9",
-    marginLeft: 16,
+    color: "#FFFFFF",
     fontWeight: "500",
-  },
-  divider: {
-    height: 1,
-    backgroundColor: "rgba(52, 211, 153, 0.2)",
-    marginVertical: 16,
-    marginHorizontal: 20,
   },
 })

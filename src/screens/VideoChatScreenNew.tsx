@@ -27,7 +27,7 @@ import {
 } from "react-native-webrtc"
 import config, { ICE_SERVERS } from "../config/config"
 import { requestCameraAndMicrophonePermissions } from "../utils/permissions"
-import { getVideoToken } from "../utils/videoToken"
+import { getVideoToken, getVideoTokenWithRetry, hasCachedToken, clearTokenCache } from "../utils/videoToken"
 import { useAudioManager } from "../utils/useAudioManager"
 import KeepAwake from "react-native-keep-awake"
 import type RTCDataChannel from "react-native-webrtc/lib/typescript/RTCDataChannel"
@@ -83,6 +83,12 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
     const [isRemoteMicOn, setIsRemoteMicOn] = useState(true)
     const dataChannelRef = useRef<RTCDataChannel | null>(null)
     const [videoKey, setVideoKey] = useState(0)
+
+    // Add missing refs/state for reconnection logic
+    const [isReconnecting, setIsReconnecting] = useState(false)
+    const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+    const connectionRetryCount = useRef(0)
+    const MAX_RETRY_COUNT = 3
 
     // Animation refs
     const pulseAnim = useRef(new Animated.Value(1)).current
@@ -414,6 +420,10 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
     useEffect(() => {
       return () => {
         cleanup()
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current)
+          reconnectTimeoutRef.current = null
+        }
       }
     }, [])
 
@@ -521,6 +531,15 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
     }
 
     const cleanup = () => {
+      // Clear connection lock
+      connectionLockRef.current = false
+      
+      // Clear any pending cleanup timeout
+      if (cleanupTimeoutRef.current) {
+        clearTimeout(cleanupTimeoutRef.current)
+        cleanupTimeoutRef.current = null
+      }
+
       if (wsRef.current) {
         wsRef.current.close()
         wsRef.current = null
@@ -532,7 +551,18 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       }
 
       if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop())
+        try {
+          const tracks = localStreamRef.current.getTracks()
+          if (tracks && Array.isArray(tracks)) {
+            tracks.forEach((track) => {
+              if (track && typeof track.stop === 'function') {
+                track.stop()
+              }
+            })
+          }
+        } catch (error) {
+          console.warn("Error stopping local stream tracks:", error)
+        }
         localStreamRef.current = null
       }
 
@@ -540,6 +570,12 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
         clearInterval(callTimerRef.current)
         callTimerRef.current = null
       }
+      
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+        reconnectTimeoutRef.current = null
+      }
+      
       setCallDuration(0)
 
       if (isAudioSetup) {
@@ -564,15 +600,43 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       setStatus("Ready")
     }
 
-    const connectToServer = async () => {
+    // Add connection lock to prevent race conditions
+    const connectionLockRef = useRef(false)
+    const cleanupTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+    const connectToServer = async (useCache: boolean = true) => {
       try {
+        // Prevent multiple simultaneous connection attempts with stronger locking
+        if (connectionLockRef.current || connectionStatus === "connecting" || isReconnecting) {
+          console.log("Connection already in progress or locked, skipping...")
+          return
+        }
+
+        connectionLockRef.current = true
         setConnectionStatus("connecting")
         setStatusMessage("Getting authorization...")
         setError("")
+        setIsReconnecting(true)
 
-        console.log("Connecting to production video chat server...")
+        console.log("Connecting to production video chat server...", { useCache, hasCached: hasCachedToken() })
 
-        const { token, signature, expiresAt } = await getVideoToken()
+        // Use cached token when available and valid
+        let tokenData
+        if (useCache && hasCachedToken()) {
+          console.log("🎯 Using cached connection flow")
+          try {
+            tokenData = await getVideoToken() // This will use cache automatically
+          } catch (cacheError) {
+            console.warn("Cached token failed, getting fresh token:", cacheError)
+            clearTokenCache()
+            tokenData = await getVideoTokenWithRetry()
+          }
+        } else {
+          console.log("🔄 Getting fresh token")
+          tokenData = await getVideoTokenWithRetry()
+        }
+
+        const { token, signature, expiresAt } = tokenData
 
         setStatusMessage("Connecting to server...")
 
@@ -586,6 +650,8 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
           setConnectionStatus("connected")
           setStatusMessage("Connected to server")
           setIsConnected(false)
+          setIsReconnecting(false)
+          connectionRetryCount.current = 0
           wsRef.current = ws
         }
 
@@ -598,12 +664,22 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
           }
         }
 
-        ws.onclose = () => {
-          console.log("Disconnected from video chat server")
+        ws.onclose = (event) => {
+          console.log("Disconnected from video chat server", event.code, event.reason)
           setConnectionStatus("disconnected")
           setStatusMessage("Disconnected from server")
           setIsConnected(false)
+          setIsReconnecting(false)
           wsRef.current = null
+
+          // Auto-reconnect on unexpected disconnection (not manual)
+          if (event.code !== 1000 && shouldAutoConnect && connectionRetryCount.current < MAX_RETRY_COUNT) {
+            connectionRetryCount.current++
+            console.log(`Auto-reconnecting attempt ${connectionRetryCount.current}/${MAX_RETRY_COUNT}`)
+            reconnectTimeoutRef.current = setTimeout(() => {
+              connectToServer(true) // Use cache for reconnection
+            }, 2000 * connectionRetryCount.current) // Increasing delay
+          }
         }
 
         ws.onerror = (error) => {
@@ -611,10 +687,23 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
           setError("Connection lost. Please check your internet and try reconnecting.")
           setConnectionStatus("disconnected")
           setIsConnected(false)
+          setIsReconnecting(false)
         }
       } catch (error) {
         console.error("Error connecting to server:", error)
+        setIsReconnecting(false)
         const errorMessage = error instanceof Error ? error.message : "Unknown error"
+
+        if (errorMessage.includes("Session expired")) {
+          setError("Session expired. Reconnecting...")
+          // Clear cache and retry once
+          clearTokenCache()
+          if (connectionRetryCount.current < 1) {
+            connectionRetryCount.current++
+            setTimeout(() => connectToServer(false), 1000)
+            return
+          }
+        }
 
         if (errorMessage.includes("Rate limit exceeded")) {
           const retryMatch = errorMessage.match(/Try again in (\d+) seconds/)
@@ -635,6 +724,10 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
         }
         setConnectionStatus("disconnected")
         setIsConnected(false)
+      } finally {
+        // Always release the connection lock
+        connectionLockRef.current = false
+        setIsReconnecting(false)
       }
     }
 
@@ -999,114 +1092,115 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       }
     }, [isInCall, connectionStatus, isProcessing, isSearching])
 
- const handlePartnerLeft = async () => {
-  console.log("handlePartnerLeft: Starting cleanup...")
-  
-  setStatusMessage("Partner left the call")
-  setStatus("Ready")
-  setIsInCall(false)
-  setIsConnected(false)
-  setIsLocalVideoLarge(false)
-  setConnectionStatus("connected")
+    const handlePartnerLeft = async () => {
+      console.log("handlePartnerLeft: Starting cleanup...")
+      
+      setStatusMessage("Partner left the call")
+      setStatus("Ready")
+      setIsInCall(false)
+      setIsConnected(false)
+      setIsLocalVideoLarge(false)
+      setConnectionStatus("connected")
 
-  // Close peer connection
-  if (peerConnectionRef.current) {
-    peerConnectionRef.current.close()
-    peerConnectionRef.current = null
-  }
+      // Close peer connection
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close()
+        peerConnectionRef.current = null
+      }
 
-  // Stop and clean up local stream
-  if (localStreamRef.current) {
-    localStreamRef.current.getTracks().forEach((track) => {
-      console.log("Stopping track:", track.kind)
-      track.stop()
-    })
-    localStreamRef.current = null
-  }
+      // Stop and clean up local stream
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => {
+          console.log("Stopping track:", track.kind)
+          track.stop()
+        })
+        localStreamRef.current = null
+      }
 
-  // Clean up remote stream
-  remoteStreamRef.current = null
+      // Clean up remote stream
+      remoteStreamRef.current = null
 
-  if (isAudioSetup) {
-    try {
-      console.log("Restoring audio settings after partner left...")
-      await restoreAudioSettings()
-      console.log("Audio settings restored successfully")
-    } catch (error) {
-      console.error("Failed to restore audio settings:", error)
+      if (isAudioSetup) {
+        try {
+          console.log("Restoring audio settings after partner left...")
+          await restoreAudioSettings()
+          console.log("Audio settings restored successfully")
+        } catch (error) {
+          console.error("Failed to restore audio settings:", error)
+        }
+      }
+
+      // Reset media states
+      setIsCameraOn(true)
+      setIsMicOn(true)
+      setIsProcessing(false)
+      setIsSearching(false)
+
+      // Reset call states
+      setRoomId(null)
+      setPartnerId(null)
+      setRole(null)
+      
+      // Clear data channel
+      dataChannelRef.current = null
+
+      console.log("handlePartnerLeft: Cleanup completed")
     }
-  }
 
-  // Reset media states
-  setIsCameraOn(true)
-  setIsMicOn(true)
-  setIsProcessing(false)
-  setIsSearching(false)
+    const handleCallEnded = async () => {
+      console.log("handleCallEnded: Starting call cleanup...")
+      
+      setStatusMessage("Call ended")
+      setStatus("Ready")
+      setIsInCall(false)
+      setIsConnected(false)
+      setIsLocalVideoLarge(false)
+      setConnectionStatus("connected")
 
-  // Reset call states
-  setRoomId(null)
-  setPartnerId(null)
-  setRole(null)
-  
-  // Clear data channel
-  dataChannelRef.current = null
+      // Close peer connection
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close()
+        peerConnectionRef.current = null
+      }
 
-  console.log("handlePartnerLeft: Cleanup completed")
-}
-  const handleCallEnded = async () => {
-  console.log("handleCallEnded: Starting call cleanup...")
-  
-  setStatusMessage("Call ended")
-  setStatus("Ready")
-  setIsInCall(false)
-  setIsConnected(false)
-  setIsLocalVideoLarge(false)
-  setConnectionStatus("connected")
+      // Stop and clean up local stream
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => {
+          console.log("Stopping track:", track.kind)
+          track.stop()
+        })
+        localStreamRef.current = null
+      }
 
-  // Close peer connection
-  if (peerConnectionRef.current) {
-    peerConnectionRef.current.close()
-    peerConnectionRef.current = null
-  }
+      // Clean up remote stream
+      remoteStreamRef.current = null
 
-  // Stop and clean up local stream
-  if (localStreamRef.current) {
-    localStreamRef.current.getTracks().forEach((track) => {
-      console.log("Stopping track:", track.kind)
-      track.stop()
-    })
-    localStreamRef.current = null
-  }
+      if (isAudioSetup) {
+        try {
+          console.log("Restoring audio settings after call ended...")
+          await restoreAudioSettings()
+          console.log("Audio settings restored successfully")
+        } catch (error) {
+          console.error("Failed to restore audio settings:", error)
+        }
+      }
 
-  // Clean up remote stream
-  remoteStreamRef.current = null
+      // Reset media states
+      setIsCameraOn(true)
+      setIsMicOn(true)
+      setIsProcessing(false)
+      setIsSearching(false)
 
-  if (isAudioSetup) {
-    try {
-      console.log("Restoring audio settings after call ended...")
-      await restoreAudioSettings()
-      console.log("Audio settings restored successfully")
-    } catch (error) {
-      console.error("Failed to restore audio settings:", error)
+      // Reset call states
+      setRoomId(null)
+      setPartnerId(null)
+      setRole(null)
+      
+      // Clear data channel
+      dataChannelRef.current = null
+
+      console.log("handleCallEnded: Cleanup completed")
     }
-  }
-
-  // Reset media states
-  setIsCameraOn(true)
-  setIsMicOn(true)
-  setIsProcessing(false)
-  setIsSearching(false)
-
-  // Reset call states
-  setRoomId(null)
-  setPartnerId(null)
-  setRole(null)
-  
-  // Clear data channel
-  dataChannelRef.current = null
-
-  console.log("handleCallEnded: Cleanup completed")
-}
 
     const handleConnectToServer = async () => {
       if (isButtonDisabled) return
@@ -1299,7 +1393,26 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
     }
 
     const handleSkip = async () => {
-      // Remove debounce logic
+      // Show confirmation alert similar to hardware back button
+      Alert.alert(
+        "Skip to Next?", 
+        "Are you sure you want to skip to the next person?", 
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Skip",
+            style: "destructive",
+            onPress: () => {
+              performSkip()
+            },
+          },
+        ]
+      )
+    }
+
+    const performSkip = async () => {
+      console.log("🔄 Skip button clicked - using smart reconnection")
+      
       // Set flag to auto-search after call ends
       shouldAutoSearchNextRef.current = true
 
@@ -1307,19 +1420,30 @@ export const VideoChatScreen = forwardRef<VideoChatScreenRef, VideoChatScreenPro
       if (isInCall) {
         leaveCall()
       } else {
-        // If not in call, just start searching immediately
-        if (connectionStatus === "connected" && wsRef.current && !isProcessing && !isSearching) {
+        // If not in call, check connection status and reuse if possible
+        if (connectionStatus === "connected" && wsRef.current && wsRef.current.readyState === WebSocket.OPEN && hasCachedToken()) {
+          console.log("🎯 Reusing existing connection for skip")
           try {
-            console.log("Skip: Not in call, starting search for next match...")
             await findMatch()
             shouldAutoSearchNextRef.current = false
           } catch (error) {
-            console.error("Error finding next match:", error)
-            setError("Failed to find next match. Please try again.")
+            console.error("Error finding next match with existing connection:", error)
+            // If existing connection fails, establish new one
+            console.log("🔄 Existing connection failed, establishing new connection")
+            setError("Reconnecting...")
+            await connectToServer(true) // Use cache
             shouldAutoSearchNextRef.current = false
           }
         } else {
-          shouldAutoSearchNextRef.current = false
+          console.log("🔄 No valid connection, establishing new one for skip")
+          try {
+            await connectToServer(true) // Use cached tokens when available
+            // findMatch will be called automatically via shouldAutoSearchNextRef
+          } catch (error) {
+            console.error("Error establishing connection for skip:", error)
+            setError("Failed to connect. Please try again.")
+            shouldAutoSearchNextRef.current = false
+          }
         }
       }
     }

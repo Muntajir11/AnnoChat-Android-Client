@@ -122,12 +122,41 @@ export const getVideoToken = async (): Promise<{ token: string; signature: strin
       } else if (error.message.includes('Failed to fetch')) {
         throw new Error('Failed to get authorization: Cannot reach annochat.social. Please check your internet connection.');
       } else {
+        // Add token expiry specific handling
+        if (error.message.includes('token') && error.message.includes('expired')) {
+          // Clear cache on token expiry to force fresh token
+          clearTokenCache();
+          throw new Error('Session expired. Please try again.');
+        }
         throw new Error(`Failed to get authorization: ${error.message}`);
       }
     } else {
       throw new Error('Failed to get authorization: Unknown error occurred');
     }
   }
+};
+
+// Add retry mechanism for failed token requests
+export const getVideoTokenWithRetry = async (maxRetries: number = 3, retryDelay: number = 1000): Promise<{ token: string; signature: string; expiresAt: number }> => {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await getVideoToken();
+    } catch (error) {
+      lastError = error as Error;
+      console.warn(`Token fetch attempt ${attempt} failed:`, error);
+      
+      if (attempt < maxRetries) {
+        // Exponential backoff
+        const delay = retryDelay * Math.pow(2, attempt - 1);
+        console.log(`Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw lastError || new Error('Failed to get token after retries');
 };
 
 // Optional: Function to clear the token cache manually

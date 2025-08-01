@@ -3,7 +3,7 @@
 import type React from "react"
 import { useChatContext } from "../contexts/ChatContext"
 import { useState } from "react"
-import { View, TextInput, TouchableOpacity, StyleSheet, Text } from "react-native"
+import { View, TextInput, TouchableOpacity, StyleSheet, Text, Alert } from "react-native"
 import Icon from "react-native-vector-icons/Ionicons"
 
 interface MessageInputProps {
@@ -28,9 +28,27 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, onCha
     }
   }
 
+  const handleSkip = () => {
+    // Show confirmation alert similar to hardware back button
+    Alert.alert(
+      "Skip to Next?", 
+      "Are you sure you want to skip to the next person?", 
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Skip",
+          style: "destructive",
+          onPress: () => {
+            disconnectWithAutoSearch()
+          },
+        },
+      ]
+    )
+  }
+
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.disconnectButton} onPress={disconnectWithAutoSearch} activeOpacity={0.7}>
+      <TouchableOpacity style={styles.disconnectButton} onPress={handleSkip} activeOpacity={0.7}>
         <Text style={styles.disconnectText}>Skip</Text>
       </TouchableOpacity>
 

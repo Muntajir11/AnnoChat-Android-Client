@@ -7,7 +7,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import WelcomeScreens from './src/components/WelcomeScreens';
 import {NavigationContainer} from '@react-navigation/native';
 import {createStackNavigator} from '@react-navigation/stack';
-import {TabNavigator} from './src/components/TabNavigator';
 import {ChatScreenContainer} from './src/screens/ChatScreenContainer';
 import {SettingsScreen} from './src/screens/SettingsScreen';
 import {AboutScreen} from './src/screens/AboutScreen';
@@ -87,7 +86,6 @@ const App = () => {
                 <Stack.Screen name="ChatModeSelection" component={ChatModeSelectionScreen} />
                 <Stack.Screen name="TextChat" component={TextChatScreenContainer} />
                 <Stack.Screen name="VideoChat" component={VideoChatScreenContainer} />
-                <Stack.Screen name="Main" component={TabNavigator} />
                 <Stack.Screen 
                   name="Chat" 
                   component={ChatScreenContainer}

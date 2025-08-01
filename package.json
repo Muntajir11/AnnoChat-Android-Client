@@ -22,6 +22,7 @@
     "@react-navigation/stack": "^7.3.2",
     "react": "18.3.1",
     "react-native": "0.76.5",
+    "react-native-device-info": "^14.0.4",
     "react-native-emoji-selector": "^0.2.0",
     "react-native-gesture-handler": "^2.25.0",
     "react-native-keep-awake": "^4.0.0",
