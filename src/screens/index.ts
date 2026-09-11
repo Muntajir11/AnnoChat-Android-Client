@@ -1,6 +1,6 @@
 // Export screens
 export { TextChatScreen } from './TextChatScreen';
-export { VideoChatScreen } from './VideoChatScreenNew';
+export { VideoChatScreen } from './video/VideoChatScreen';
 export { SettingsScreen } from './SettingsScreen';
 export { AboutScreen } from './AboutScreen';
 export { SupportFeedbackScreen } from './SupportFeedBackScreen';

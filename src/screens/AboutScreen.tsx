@@ -8,7 +8,6 @@ import {
   Linking,
   StatusBar,
   Animated,
-  Easing,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -44,6 +43,7 @@ export const AboutScreen: React.FC<AboutScreenProps> = ({ navigation }) => {
         useNativeDriver: true,
       }),
     ]).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- animation values are stable refs
   }, []);
   
   return (
@@ -132,13 +132,13 @@ export const AboutScreen: React.FC<AboutScreenProps> = ({ navigation }) => {
               Email: annochat.social@gmail.com{'\n'}
             </Text>
             <TouchableOpacity 
-              onPress={() => Linking.openURL('https://annochat.social/')}
+              onPress={() => Linking.openURL('https://annochat.me/')}
               style={styles.linkButton}
               activeOpacity={0.8}>
               <View style={styles.linkIconContainer}>
                 <Ionicons name="globe" size={16} color="#4CAF50" />
               </View>
-              <Text style={styles.linkText}>Visit annochat.social</Text>
+              <Text style={styles.linkText}>Visit annochat.me</Text>
               <Ionicons name="arrow-forward" size={14} color="#4CAF50" />
             </TouchableOpacity>
           </View>

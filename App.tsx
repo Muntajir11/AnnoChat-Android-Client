@@ -2,19 +2,14 @@
 
 import {useState, useEffect} from 'react';
 import {View, StatusBar, StyleSheet, Platform, PermissionsAndroid} from 'react-native';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import WelcomeScreens from './src/components/WelcomeScreens';
 import {NavigationContainer} from '@react-navigation/native';
 import {createStackNavigator} from '@react-navigation/stack';
-import {ChatScreenContainer} from './src/screens/ChatScreenContainer';
 import {SettingsScreen} from './src/screens/SettingsScreen';
 import {AboutScreen} from './src/screens/AboutScreen';
 import {SupportFeedbackScreen} from './src/screens/SupportFeedBackScreen';
 import {ChatModeSelectionScreen, TextChatScreenContainer, VideoChatScreenContainer} from './src/screens';
-import {ChatProvider} from './src/contexts/ChatContext';
-import messaging from '@react-native-firebase/messaging';
-import notifee from '@notifee/react-native';
 import {registerForegroundNotificationHandler} from './src/notifications/notificationHandler';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 
@@ -76,31 +71,20 @@ const App = () => {
         {showWelcome ? (
           <WelcomeScreens onDone={handleDoneWelcome} />
         ) : (
-          <ChatProvider>
-            <NavigationContainer>
-              <Stack.Navigator
-                screenOptions={{
-                  headerShown: false,
-                  cardStyle: {backgroundColor: '#064E3B'},
-                }}>
-                <Stack.Screen name="ChatModeSelection" component={ChatModeSelectionScreen} />
-                <Stack.Screen name="TextChat" component={TextChatScreenContainer} />
-                <Stack.Screen name="VideoChat" component={VideoChatScreenContainer} />
-                <Stack.Screen 
-                  name="Chat" 
-                  component={ChatScreenContainer}
-                  options={{
-                    gestureEnabled: false,
-                    cardStyle: {backgroundColor: '#0A0A0F'},
-                  }}
-                />
-                <Stack.Screen name="Settings" component={SettingsScreen} />
-                <Stack.Screen name="About" component={AboutScreen} />
-                <Stack.Screen name="SupportFeedback" component={SupportFeedbackScreen}
-                />
-              </Stack.Navigator>
-            </NavigationContainer>
-          </ChatProvider>
+          <NavigationContainer>
+            <Stack.Navigator
+              screenOptions={{
+                headerShown: false,
+                cardStyle: {backgroundColor: '#064E3B'},
+              }}>
+              <Stack.Screen name="ChatModeSelection" component={ChatModeSelectionScreen} />
+              <Stack.Screen name="TextChat" component={TextChatScreenContainer} />
+              <Stack.Screen name="VideoChat" component={VideoChatScreenContainer} />
+              <Stack.Screen name="Settings" component={SettingsScreen} />
+              <Stack.Screen name="About" component={AboutScreen} />
+              <Stack.Screen name="SupportFeedback" component={SupportFeedbackScreen} />
+            </Stack.Navigator>
+          </NavigationContainer>
         )}
       </View>
     </SafeAreaProvider>

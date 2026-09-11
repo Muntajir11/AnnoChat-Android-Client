@@ -9,11 +9,12 @@ interface SideDrawerProps {
   navigation: any
 }
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get("window")
+const { width: screenWidth } = Dimensions.get("window")
 
 export const SideDrawer: React.FC<SideDrawerProps> = ({ isVisible, onClose, navigation }) => {
   const slideAnim = React.useRef(new Animated.Value(screenWidth)).current
 
+  // Animation refs are stable; only visibility should retrigger.
   React.useEffect(() => {
     if (isVisible) {
       Animated.timing(slideAnim, {
@@ -28,6 +29,7 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({ isVisible, onClose, navi
         useNativeDriver: false,
       }).start()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- slideAnim is a stable ref
   }, [isVisible])
 
   const navigateToScreen = (screenName: string) => {
@@ -109,7 +111,7 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({ isVisible, onClose, navi
             {/* Privacy Policy */}
             <TouchableHighlight 
               style={styles.menuItem} 
-              onPress={() => handleExternalLink("https://annochat.social")} 
+              onPress={() => handleExternalLink("https://annochat.me")} 
               activeOpacity={0.8}
               underlayColor="rgba(255, 255, 255, 0.08)"
             >
@@ -125,7 +127,7 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({ isVisible, onClose, navi
             {/* Terms of Service */}
             <TouchableHighlight 
               style={styles.menuItem} 
-              onPress={() => handleExternalLink("https://annochat.social")} 
+              onPress={() => handleExternalLink("https://annochat.me")} 
               activeOpacity={0.8}
               underlayColor="rgba(255, 255, 255, 0.08)"
             >

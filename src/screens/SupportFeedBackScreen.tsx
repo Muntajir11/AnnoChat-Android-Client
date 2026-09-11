@@ -40,6 +40,7 @@ export const SupportFeedbackScreen: React.FC<SupportFeedbackScreenProps> = ({ na
         useNativeDriver: true,
       }),
     ]).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- animation values are stable refs
   }, []);
   
   const handleSubmit = () => {
@@ -169,7 +170,7 @@ export const SupportFeedbackScreen: React.FC<SupportFeedbackScreenProps> = ({ na
 
             <TouchableOpacity 
               style={styles.contactItem}
-              onPress={() => Linking.openURL('https://annochat.social')}
+              onPress={() => Linking.openURL('https://annochat.me')}
               activeOpacity={0.8}>
               <View style={styles.contactIconContainer}>
                 <Ionicons name="globe" size={18} color="#FF6B6B" />

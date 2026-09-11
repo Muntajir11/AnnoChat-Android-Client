@@ -1,7 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { VideoChatScreen } from './index';
-import type { VideoChatScreenRef } from './VideoChatScreenNew';
+import { VideoChatScreen } from './video/VideoChatScreen';
 import { SideDrawer } from '../components/SideDrawer';
 
 interface VideoChatScreenContainerProps {
@@ -12,30 +11,22 @@ export const VideoChatScreenContainer: React.FC<VideoChatScreenContainerProps> =
   navigation,
 }) => {
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
-  const videoChatRef = useRef<VideoChatScreenRef>(null);
 
   const toggleDrawer = () => {
     setIsDrawerVisible(!isDrawerVisible);
   };
 
-  const handleChatStatusChange = (isConnected: boolean) => {
-    // Handle chat status if needed
-  };
-
   return (
     <View style={styles.container}>
       <VideoChatScreen
-        ref={videoChatRef}
+        navigation={navigation}
         onMenuPress={toggleDrawer}
-        onChatStatusChange={handleChatStatusChange}
-        shouldAutoConnect={true}
-        shouldDisconnectOnTabSwitch={false}
+        onChatStatusChange={() => undefined}
       />
-      
-      <SideDrawer 
-        isVisible={isDrawerVisible} 
-        onClose={() => setIsDrawerVisible(false)} 
-        navigation={navigation} 
+      <SideDrawer
+        isVisible={isDrawerVisible}
+        onClose={() => setIsDrawerVisible(false)}
+        navigation={navigation}
       />
     </View>
   );

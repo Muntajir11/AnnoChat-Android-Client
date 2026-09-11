@@ -10,11 +10,11 @@ interface HeaderProps {
   onMenuPress?: () => void
 }
 
-export const Header: React.FC<HeaderProps> = ({ isConnected, onlineUsers, status, onMenuPress }) => {
+export const Header: React.FC<HeaderProps> = ({ isConnected: _isConnected, onlineUsers, status, onMenuPress }) => {
   const insets = useSafeAreaInsets()
 
   const openWebsite = () => {
-    Linking.openURL("https://annochat.social").catch((err) => {
+    Linking.openURL("https://annochat.me").catch((err) => {
       console.error("Failed to open URL:", err)
     })
   }
@@ -31,7 +31,8 @@ export const Header: React.FC<HeaderProps> = ({ isConnected, onlineUsers, status
           </View>
           <View style={styles.brandText}>
             <Text style={styles.appName}>ANNOCHAT</Text>
-            <Text style={styles.tagline}>Connect • Discover • Chat</Text>
+            <Text style={styles.tagline}>{status || "Connect • Discover • Chat"}</Text>
+            <Text style={styles.online}>{onlineUsers} online (incl. you)</Text>
           </View>
         </TouchableOpacity>
 
@@ -106,6 +107,11 @@ const styles = StyleSheet.create({
     color: "#8B5CF6",
     fontWeight: "500",
     letterSpacing: 0.5,
+  },
+  online: {
+    fontSize: 11,
+    color: "#94A3B8",
+    marginTop: 2,
   },
   menuButton: {
     width: 44,

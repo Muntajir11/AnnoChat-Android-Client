@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,12 +10,13 @@ import {
   Easing,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { useOnlineCount } from '../hooks/useOnlineCount';
 
 interface ChatModeSelectionScreenProps {
   navigation: any;
 }
 
-const { width, height } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
 
 export const ChatModeSelectionScreen: React.FC<ChatModeSelectionScreenProps> = ({
   navigation,
@@ -30,9 +31,7 @@ export const ChatModeSelectionScreen: React.FC<ChatModeSelectionScreenProps> = (
   const particleAnim2 = useRef(new Animated.Value(0)).current;
   const particleAnim3 = useRef(new Animated.Value(0)).current;
 
-  // Mock data
-  const [textUsers] = useState(1247);
-  const [videoUsers] = useState(892);
+  const { online } = useOnlineCount();
 
   useEffect(() => {
     // Entrance animations
@@ -169,6 +168,7 @@ export const ChatModeSelectionScreen: React.FC<ChatModeSelectionScreenProps> = (
       particleAnimation2.stop();
       particleAnimation3.stop();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- animation values are stable refs
   }, []);
 
   const handleTextChat = () => {
@@ -288,7 +288,7 @@ export const ChatModeSelectionScreen: React.FC<ChatModeSelectionScreenProps> = (
             <View style={styles.statIcon}>
               <Ionicons name="people" size={14} color="#4ECDC4" />
             </View>
-            <Text style={styles.statText}>2.1k+ online</Text>
+            <Text style={styles.statText}>{online} online (incl. you)</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
@@ -329,7 +329,7 @@ export const ChatModeSelectionScreen: React.FC<ChatModeSelectionScreenProps> = (
               <View style={styles.optionRight}>
                 <View style={styles.statusBadge}>
                   <View style={styles.statusDotText} />
-                  <Text style={styles.statusNumber}>{(textUsers/1000).toFixed(1)}k</Text>
+                  <Text style={styles.statusNumber}>{online}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color="#8B5CF6" />
               </View>
@@ -357,7 +357,7 @@ export const ChatModeSelectionScreen: React.FC<ChatModeSelectionScreenProps> = (
               <View style={styles.optionRight}>
                 <View style={styles.statusBadge}>
                   <View style={styles.statusDotVideo} />
-                  <Text style={styles.statusNumber}>{Math.round(videoUsers/1000)}k</Text>
+                  <Text style={styles.statusNumber}>{online}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color="#4CAF50" />
               </View>

@@ -16,7 +16,7 @@ import { PanGestureHandler, State, GestureHandlerRootView } from "react-native-g
 import { Svg, Path, Circle } from "react-native-svg"
 import StaticBackground from "./static-background"
 
-const { width, height } = Dimensions.get("window")
+const { width } = Dimensions.get("window")
 
 // Sexy Chat Icon
 const SexyMessageIcon = ({ size = 80, color = "#34D399" }) => (
@@ -266,7 +266,7 @@ const WelcomeScreens = ({ onDone }: { onDone: () => void }) => {
     setShowTerms(false)
   }
 
-  const renderSlide = ({ item, index }: { item: any; index: number }) => {
+  const renderSlide = ({ item }: { item: any; index: number }) => {
     return (
       <View style={styles.slideContainer}>
         <StaticBackground variant={item.variant} />

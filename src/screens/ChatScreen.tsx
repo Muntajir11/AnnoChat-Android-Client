@@ -3,7 +3,6 @@
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { View, StyleSheet, KeyboardAvoidingView, Platform, Keyboard, Dimensions, Animated, Easing } from "react-native"
-import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { ChatWindow } from "../components/ChatWindow"
 import { MessageInput } from "../components/MessageInput"
 import { Header } from "../components/Header"
@@ -19,7 +18,7 @@ interface ChatScreenProps {
   onChangeText: (text: string) => void
 }
 
-const { width, height } = Dimensions.get("window")
+const { height } = Dimensions.get("window")
 
 export const ChatScreen: React.FC<ChatScreenProps> = ({
   messages,
@@ -30,7 +29,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   onSendMessage,
   onChangeText,
 }) => {
-  const insets = useSafeAreaInsets()
   const [isKeyboardVisible, setKeyboardVisible] = useState(false)
 
   // Particle animation refs
@@ -109,6 +107,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       particleAnimation2.stop()
       particleAnimation3.stop()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- particle refs are stable
   }, [])
 
   // Particle animations - constrained within safe area

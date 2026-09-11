@@ -63,6 +63,7 @@ export const useAudioManager = (): AudioManagerHook => {
       console.error('Failed to setup audio for video call:', error);
       return false;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshAudioDevices is declared below
   }, []);
 
   const switchToSpeaker = useCallback(async (): Promise<boolean> => {

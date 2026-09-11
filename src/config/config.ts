@@ -1,32 +1,36 @@
-// Environment-based configuration utility for React Native
-const isDevelopment = false; // Force production for direct connection
+const EMULATOR_HOST = '10.0.2.2';
 
-export const config = {
-  isDevelopment,
-  environment: 'production',
-  
-  // Production WebSocket URLs - connecting directly to your server
-  websocketUrl: 'wss://muntajir.me',
-  presenceUrl: 'wss://muntajir.me/presence', 
-  videoUrl: 'wss://muntajir.me/video',
-  
-  // Web client API URL for token fetching
-  webClientUrl: 'https://annochat.social',
-};
+export const config = __DEV__
+  ? {
+      serverHttp: `http://${EMULATOR_HOST}:5000`,
+      serverWs: `ws://${EMULATOR_HOST}:5000`,
+      turnUrl: '',
+      turnUser: '',
+      turnPass: '',
+      iceTransportPolicy: 'all' as 'all' | 'relay',
+    }
+  : {
+      serverHttp: 'https://api.annochat.me',
+      serverWs: 'wss://api.annochat.me',
+      turnUrl: '',
+      turnUser: '',
+      turnPass: '',
+      iceTransportPolicy: 'all' as 'all' | 'relay',
+    };
 
-// ICE servers configuration matching web client
-export const ICE_SERVERS = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun2.l.google.com:19302' },
-];
-
-console.log('🌍 React Native Environment: Production (Direct Connection)');
-console.log('🔗 WebSocket URLs:', {
-  main: config.websocketUrl,
-  presence: config.presenceUrl,
-  video: config.videoUrl
-});
-console.log('🌐 Web Client URL:', config.webClientUrl);
+export function iceServers() {
+  const servers: { urls: string; username?: string; credential?: string }[] = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+  ];
+  if (config.turnUrl) {
+    servers.push({
+      urls: config.turnUrl,
+      username: config.turnUser,
+      credential: config.turnPass,
+    });
+  }
+  return servers;
+}
 
 export default config;

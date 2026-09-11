@@ -16,7 +16,7 @@ export const TextChatScreenContainer: React.FC<TextChatScreenContainerProps> = (
     setIsDrawerVisible(!isDrawerVisible);
   };
 
-  const handleChatStatusChange = (isConnected: boolean) => {
+  const handleChatStatusChange = (_isConnected: boolean) => {
     // Handle chat status if needed
   };
 

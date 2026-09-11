@@ -1,19 +1,25 @@
 "use client"
 
 import type React from "react"
-import { useChatContext } from "../contexts/ChatContext"
 import { useState } from "react"
-import { View, TextInput, TouchableOpacity, StyleSheet, Text, Alert } from "react-native"
+import { View, TextInput, TouchableOpacity, StyleSheet, Text } from "react-native"
 import Icon from "react-native-vector-icons/Ionicons"
+import { MAX_INPUT_CHARS } from "../lib/protocol"
 
 interface MessageInputProps {
   onSendMessage: (text: string) => void
   onChangeText: (text: string) => void
+  onSkip?: () => void
+  maxLength?: number
 }
 
-export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, onChangeText }) => {
+export const MessageInput: React.FC<MessageInputProps> = ({
+  onSendMessage,
+  onChangeText,
+  onSkip,
+  maxLength = MAX_INPUT_CHARS,
+}) => {
   const [message, setMessage] = useState("")
-  const { disconnectWithAutoSearch } = useChatContext()
 
   const handleChangeText = (text: string) => {
     setMessage(text)
@@ -28,27 +34,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, onCha
     }
   }
 
-  const handleSkip = () => {
-    // Show confirmation alert similar to hardware back button
-    Alert.alert(
-      "Skip to Next?", 
-      "Are you sure you want to skip to the next person?", 
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Skip",
-          style: "destructive",
-          onPress: () => {
-            disconnectWithAutoSearch()
-          },
-        },
-      ]
-    )
-  }
-
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.disconnectButton} onPress={handleSkip} activeOpacity={0.7}>
+      <TouchableOpacity style={styles.disconnectButton} onPress={() => onSkip?.()} activeOpacity={0.7}>
         <Text style={styles.disconnectText}>Skip</Text>
       </TouchableOpacity>
 
@@ -60,7 +48,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, onCha
           value={message}
           onChangeText={handleChangeText}
           multiline={true}
-          maxLength={500}
+          maxLength={maxLength}
           returnKeyType="send"
           onSubmitEditing={handleSend}
           blurOnSubmit={false}
